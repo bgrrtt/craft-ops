@@ -330,7 +330,7 @@ install_node_modules:
             "user": user
         },
         "watchify": {
-          "command": "watchify js/_main.js -o js/bundle.js --poll",
+          "command": "watchify js/_main.js -o js/bundle.js --poll=1000",
             "directory": assets_path,
             "user": user
         },
