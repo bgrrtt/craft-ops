@@ -1,6 +1,8 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
+{% set project = pillar -%}
+
 include:
   - stackstrap.env
   - stackstrap.supervisor
@@ -51,6 +53,21 @@ remove-nginx-default-conf:
       - pkg: nginx
     - watch_in:
       - service: nginx
+
+php5-mcrypt:
+  pkg.installed
+
+php-mcrypt-enable:
+  cmd.run:
+    - name: php5enmod mcrypt
+    - require:
+      - pkg: php5-mcrypt
+
+php5-restart:
+  cmd.run:
+    - name: service php5-fpm restart
+    - require:
+      - cmd: php-mcrypt-enable
 
 install_composer:
   cmd.run:

@@ -188,21 +188,6 @@ download_craft_{{ plugin['name'] }}_plugin:
     - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['name'] }}
 {% endfor %}
 
-php5-mcrypt:
-  pkg.installed
-
-php-mcrypt-enable:
-  cmd.run:
-    - name: php5enmod mcrypt
-    - require:
-      - pkg: php5-mcrypt
-
-php5-restart:
-  cmd.run:
-    - name: service php5-fpm restart
-    - require:
-      - cmd: php-mcrypt-enable
-
 {% if aws_access_key %}
 {{ home }}/.aws:
   file.directory:
