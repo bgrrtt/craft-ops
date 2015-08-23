@@ -214,3 +214,9 @@ node_global_browserify:
       craft_path: {{ craft_path }}
 
 {% endfor %}
+
+#https://bugs.launchpad.net/ubuntu/+source/php5/+bug/1242376
+/etc/init/php5-fpm.conf:
+  file.managed:
+    - source: salt://web/files/php5-fpm.conf
+    - mode: 644

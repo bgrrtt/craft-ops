@@ -327,4 +327,8 @@ install_node_modules:
     })
 }}
 
-# vim: set ft=yaml ts=2 sw=2 sts=2 et ai :
+#https://bugs.launchpad.net/ubuntu/+source/php5/+bug/1242376
+/etc/init/php5-fpm.conf:
+  file.managed:
+    - source: salt://dev/files/php5-fpm.conf
+    - mode: 644
