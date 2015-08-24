@@ -62,7 +62,6 @@ node_modules
 # Craft CMS
 craft/plugins/*
 craft/storage/*
-license.key
 
 # Craft Ops
 private.conf
