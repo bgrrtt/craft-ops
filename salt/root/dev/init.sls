@@ -75,16 +75,24 @@ install_legit_aliases:
     - makedirs: True
     - user: {{ user }}
 
+{% set php_envs = {
+  'CRAFT_ENVIRONMENT': 'local',
+  'CRAFT_PATH': craft_path,
+  'PROJECT_PATH': project_path,
+  'UPLOADS_PATH': uploads_path,
+  'MYSQL_USER': mysql_user,
+  'MYSQL_PASS': mysql_pass,
+  'MYSQL_DB': mysql_db
+} %}
+
+{% if project['dev']['envs'] %}
+{% for key, value in salt['pillar.get']('dev:envs', {}).iteritems() %}
+    {% do php_envs.update({key:value}) %}
+  {% endfor %}
+{% endif %}
+  
 {{ php5_fpm_instance(user, group, '5000',
-                     envs={
-                       'CRAFT_ENVIRONMENT': 'local',
-                       'CRAFT_PATH': craft_path,
-                       'PROJECT_PATH': project_path,
-                       'UPLOADS_PATH': uploads_path,
-			                 'MYSQL_USER': mysql_user,
-			                 'MYSQL_PASS': mysql_pass,
-			                 'MYSQL_DB': mysql_db
-		                 })
+                     envs=php_envs)
 }}
 
 {{ nginxsite(user, group,
@@ -307,6 +315,13 @@ install_node_modules:
       {% endif %}
       uploads_path: {{ uploads_path }}
       craft_path: {{ craft_path }}
+      {% if project['dev']['envs'] %}
+      envs:
+        {% for key, value in salt['pillar.get']('dev:envs', {}).iteritems() %}
+        - key: {{ key }}
+          value: "{{ value }}"
+        {% endfor %}
+      {% endif %}
 
 {{ supervise("dev", home, user, group, {
         "harp": {

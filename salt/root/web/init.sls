@@ -63,17 +63,25 @@ node_global_browserify:
           identity=home+'/.ssh/web.pem')
 }}
 
+{% set php_envs = {
+  'PROJECT_PATH': project_path,
+  'UPLOADS_PATH': uploads_path,
+  'CRAFT_ENVIRONMENT': stage,
+  'CRAFT_PATH': craft_path,
+  'MYSQL_USER': mysql_user,
+  'MYSQL_PASS': mysql_pass,
+  'MYSQL_DB': mysql_db,
+} %}
+
+{% if stages[stage]['envs'] %}
+{% for key, value in salt['pillar.get']('web:stages:'+stage+':envs', {}).iteritems() %}
+    {% do php_envs.update({key:value}) %}
+{% endfor %}
+{% endif %}
+
 {{ php5_fpm_instance(user, group, port,
                      name=project_name,
-                     envs={
-                      'PROJECT_PATH': project_path,
-                      'UPLOADS_PATH': uploads_path,
-                      'CRAFT_ENVIRONMENT': stage,
-                      'CRAFT_PATH': craft_path,
-			                'MYSQL_USER': mysql_user,
-			                'MYSQL_PASS': mysql_pass,
-			                'MYSQL_DB': mysql_db,
-                     })
+                     envs=php_envs)
 }}
 
 {{ mysql_user_db(mysql_user, mysql_pass, mysql_db) }}
@@ -110,12 +118,20 @@ node_global_browserify:
              })
 }}
 
+{% if project['web']['deploy_keys'] %}
 {{ user }}_authorized_keys:
   file.managed:
     - name: {{ home }}/.ssh/authorized_keys
     - source: salt://web/files/authorized_keys
     - makedirs: True
     - user: {{ user }}
+    - template: jinja
+    - defaults:
+      deploy_keys:
+        {% for name in project['web']['deploy_keys'] %}
+        - {{ project['web']['deploy_keys'][name] }}
+        {% endfor %}
+{% endif %}
 
 {{ user }}_ssh_config:
   file.managed:
@@ -212,6 +228,13 @@ node_global_browserify:
       {% endif %}
       uploads_path: {{ uploads_path }}
       craft_path: {{ craft_path }}
+      {% if stages[stage]['envs'] %}
+      envs:
+        {% for key, value in salt['pillar.get']('web:stages:'+stage+':envs', {}).iteritems() %}
+        - key: {{ key }}
+          value: "{{ value }}"
+        {% endfor %}
+      {% endif %}
 
 {% endfor %}
 

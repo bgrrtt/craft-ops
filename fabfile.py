@@ -71,7 +71,7 @@ def web():
     env.hosts = [project['web']['server']]
     env.host = project['web']['server']
     env.host_string = project['web']['server']
-    env.key_filename = 'salt/root/web/files/web.pem'
+    env.key_filename = 'salt/root/web/files/admin.pem'
     
 
 @task
@@ -245,11 +245,13 @@ def setup(method=False):
         if 'web' not in project_yaml:
             project_yaml['web'] = {}
 
+        local("openssl genrsa -out salt/root/web/files/admin.pem 2048")
+        local("chmod 600 salt/root/web/files/admin.pem")
+        local("ssh-keygen -f salt/root/web/files/admin.pem -y > salt/root/web/files/admin.pub")
+
         local("openssl genrsa -out salt/root/web/files/web.pem 2048")
         local("chmod 600 salt/root/web/files/web.pem")
         local("ssh-keygen -f salt/root/web/files/web.pem -y > salt/root/web/files/web.pub")
-        local("ssh-add salt/root/web/files/web.pem")
-        local("cp salt/root/web/files/web.pub salt/root/web/files/authorized_keys")
 
     #
     # AWS
@@ -263,7 +265,7 @@ def setup(method=False):
         if 'web' not in project_yaml:
             project_yaml['web'] = {}
 
-        with open("salt/root/web/files/web.pub", "rb") as public_key:
+        with open("salt/root/web/files/admin.pub", "rb") as public_key:
             project_yaml['web']['key_fingerprint'] = json.loads(local("aws ec2 import-key-pair --key-name "+project['name']+" --public-key-material \""+public_key.read()+"\"", capture=True))['KeyFingerprint']
 
         elastic_ip = json.loads(local("aws ec2 allocate-address --domain vpc", capture=True))
@@ -299,7 +301,7 @@ def setup(method=False):
         print security_group 
 
         for port in project['web']['open_ports']:
-            local("aws ec2 authorize-security-group-ingress --group-id "+security_group['GroupId']+" --protocol tcp --port "+port+" --cidr 0.0.0.0/0")
+            local("aws ec2 authorize-security-group-ingress --group-id "+security_group['GroupId']+" --protocol tcp --port "+str(port)+" --cidr 0.0.0.0/0")
 
         project_yaml['aws']['security_groups'] = [security_group['GroupId']]
 
@@ -379,7 +381,8 @@ def clean(method=False):
         local("aws ec2 delete-key-pair --key-name "+project['name'], capture=True)
 
         if project['aws']['address_allocation_id']:
-            local("aws ec2 release-address --allocation-id "+project['aws']['address_allocation_id'], capture=True)
+            with settings(warn_only=True):
+                local("aws ec2 release-address --allocation-id "+project['aws']['address_allocation_id'], capture=True)
 
         vpc_id = project['aws']['vpc_id']
 
@@ -448,20 +451,16 @@ def clean(method=False):
             if req.status_code == 204:
                 project_yaml['bitbucket'].pop('deploy_key_id', None)
 
-        with settings(warn_only=True):
-            local("git remote set-url origin git@github.com:stackstrap/craft-ops.git")
-
 
     #
     # Full clean
     #
 
     if (not method):
+        local("rm -f salt/root/web/files/admin.pem")
+        local("rm -f salt/root/web/files/admin.pub")
         local("rm -f salt/root/web/files/web.pem")
         local("rm -f salt/root/web/files/web.pub")
-        local("rm -f salt/root/dev/files/web.pem")
-        local("rm -f salt/root/dev/files/web.pub")
-        local("cat /dev/null > salt/root/web/files/authorized_keys")
 
         project_yaml.pop('web', None)
         project_yaml.pop('bitbucket', None)

@@ -1,0 +1,3 @@
+{% for key in deploy_keys %}
+{{ key }}
+{% endfor %}

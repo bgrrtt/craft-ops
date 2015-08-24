@@ -1,4 +1,5 @@
 cd {{ project_path }}
+
 export PROJECT_PATH={{ project_path }}
 export GIT_EDITOR=vim
 export SASS_LIBSASS_PATH="/usr/local/lib/libsass"
@@ -6,16 +7,23 @@ export CRAFT_ENVIRONMENT=local
 export MYSQL_USER={{ mysql_user }}
 export MYSQL_PASS={{ mysql_pass }}
 export MYSQL_DB={{ mysql_db }}
+export UPLOADS_PATH={{ uploads_path }}
+export CRAFT_PATH={{ craft_path }}
+
 {% if aws_access_key %}
 export AWS_ACCESS_KEY={{ aws_access_key }}
 export AWS_SECRET_KEY={{ aws_secret_key }}
 {% endif %}
+
 {% if bitbucket_user %}
 export BITBUCKET_USER={{ bitbucket_user }}
 export BITBUCKET_PASS_TOKEN={{ bitbucket_pass_token }}
 {% endif %}
-export UPLOADS_PATH={{ uploads_path }}
-export CRAFT_PATH={{ craft_path }}
-ssh-add {{ project_path }}/salt/root/web/files/web.pem
+
+{% if envs %}
+{% for env in envs %}
+export {{ env['key'] }}="{{ env['value'] }}"
+{% endfor %}
+{% endif %}
 
 source ~/.bashrc
