@@ -380,9 +380,13 @@ def clean(method=False):
 
         local("aws ec2 delete-key-pair --key-name "+project['name'], capture=True)
 
+        project_yaml['web'].pop('key_fingerprint', None)
+
         if project['aws']['address_allocation_id']:
             with settings(warn_only=True):
                 local("aws ec2 release-address --allocation-id "+project['aws']['address_allocation_id'], capture=True)
+
+        project_yaml['web'].pop('server', None)
 
         vpc_id = project['aws']['vpc_id']
 
@@ -462,7 +466,6 @@ def clean(method=False):
         local("rm -f salt/root/web/files/web.pem")
         local("rm -f salt/root/web/files/web.pub")
 
-        project_yaml.pop('web', None)
         project_yaml.pop('bitbucket', None)
         project_yaml.pop('git', None)
 
