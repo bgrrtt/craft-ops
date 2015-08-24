@@ -482,7 +482,7 @@ def clean(method=False):
 
 @task
 def find(query=""):
-    local("ack "+query+" --ignore-dir=craft/plugins --ignore-dir=craft/storage --ignore-dir=.vagrant --ignore-dir=vendor --ignore-dir=.git")
+    local("ack "+query+" --ignore-dir=craft/plugins --ignore-dir=craft/storage --ignore-dir=.vagrant --ignore-dir=vendor --ignore-dir=.git --ignore-file=is:bundle.js")
 
 
 @task
