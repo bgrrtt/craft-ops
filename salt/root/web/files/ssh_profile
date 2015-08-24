@@ -6,8 +6,6 @@ export CRAFT_ENVIRONMENT={{ stage }}
 export MYSQL_USER={{ mysql_user }}
 export MYSQL_PASS={{ mysql_pass }}
 export MYSQL_DB={{ mysql_db }}
-export AWS_ACCESS_KEY={{ aws_access_key }}
-export AWS_SECRET_KEY={{ aws_secret_key }}
 export UPLOADS_PATH={{ uploads_path }}
 
 {% if envs %}

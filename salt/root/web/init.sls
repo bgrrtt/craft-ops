@@ -20,9 +20,6 @@ node_global_browserify:
 
 {% set stages = project['web']['stages'] %}
 
-{% set aws_access_key = project['aws']['access_key'] -%}
-{% set aws_secret_key = project['aws']['secret_key'] -%}
-
 {% for stage in stages %}
 
 {% set user = stages[stage]['user'] -%}
@@ -222,10 +219,6 @@ node_global_browserify:
       mysql_user: {{ mysql_user }}
       mysql_pass: {{ mysql_pass }}
       mysql_db: {{ mysql_db }}
-      {% if aws_access_key %}
-      aws_access_key: {{ aws_access_key }}
-      aws_secret_key: {{ aws_secret_key }}
-      {% endif %}
       uploads_path: {{ uploads_path }}
       craft_path: {{ craft_path }}
       {% if stages[stage]['envs'] %}
@@ -234,6 +227,8 @@ node_global_browserify:
         - key: {{ key }}
           value: "{{ value }}"
         {% endfor %}
+      {% else %}
+      envs: False
       {% endif %}
 
 {% endfor %}

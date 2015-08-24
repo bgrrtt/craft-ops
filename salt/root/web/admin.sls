@@ -12,11 +12,6 @@
 {% set home = "/home/"+user -%}
 {% set project_path = "/project" -%}
 
-{% set aws_access_key = project['aws']['access_key'] -%}
-{% set aws_secret_key = project['aws']['secret_key'] -%}
-{% set bitbucket_user = project['bitbucket']['user'] -%}
-{% set bitbucket_pass_token = project['bitbucket']['token'] -%}
-
 {{ env(user, group) }}
 
 python_requirements:
@@ -40,11 +35,3 @@ admin_profile_setup:
     - template: jinja
     - defaults:
       project_path: {{ project_path }}
-      {% if aws_access_key %}
-      aws_access_key: {{ aws_access_key }}
-      aws_secret_key: {{ aws_secret_key }}
-      {% endif %}
-      {% if bitbucket_user %}
-      bitbucket_user: {{ bitbucket_user }}
-      bitbucket_pass_token: {{ bitbucket_pass_token }}
-      {% endif %}
