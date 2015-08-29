@@ -266,7 +266,7 @@ def setup(method=False):
             project_yaml['web'] = {}
 
         with open("salt/root/web/files/admin.pub", "rb") as public_key:
-            project_yaml['web']['key_fingerprint'] = json.loads(local("aws ec2 import-key-pair --key-name "+project['name']+" --public-key-material \""+public_key.read()+"\"", capture=True))['KeyFingerprint']
+            project_yaml['web']['key_fingerprint'] = json.loads(local("aws ec2 import-key-pair --key-name "+project['name']+" --public-key-material \"`cat salt/root/web/files/admin.pub`\"", capture=True))['KeyFingerprint']
 
         elastic_ip = json.loads(local("aws ec2 allocate-address --domain vpc", capture=True))
         project_yaml['web']['server'] = elastic_ip['PublicIp']
