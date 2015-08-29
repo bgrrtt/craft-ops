@@ -321,6 +321,8 @@ install_node_modules:
         - key: {{ key }}
           value: "{{ value }}"
         {% endfor %}
+      {% else %}
+      envs: False
       {% endif %}
 
 {{ supervise("dev", home, user, group, {
