@@ -72,18 +72,6 @@ You can add all of your bower components to the `bower.json` file at the root of
 project.  Just run `bower install` and anything within `bower_components` will be
 available at `http://localhost:8000/static/vendor`.
 
-##### Browserify
-
-[Browserify][browserify_link] is an excellent way to make use of `CommonJS` and
-break your code up into `modules` or use packages from [npm][npm_link]. Browserify
-is a nice improvement to the complex API of RequireJS and AMD, while offering the
-same advantages. It also handily bundles all of your code into a single file so
-that you cut down on HTTP requests. By default any changes to `assets/js/_main.js`
-will automatically be output to `assets/js/bundle.js`. Since everything in the
-`assets` folder is passing through harp, the file will be available at
-`http://localhost:8000/static/js/bundle.js`.
-
-
 # Completing the Ops setup
 
 #### How the configuration works
@@ -215,7 +203,6 @@ Or maybe you want to sync your `dev` uploads to `production`...
 $ fab production uploads:up
 ```
 
-[browserify_link]: http://browserify.org/
 [fabric_link]: http://www.fabfile.org/
 [harp_link]: http://harpjs.com/
 [npm_link]: http://npmjs.org

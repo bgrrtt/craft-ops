@@ -152,11 +152,6 @@ def deploy(branch="master"):
         run("rm -rf $CRAFT_PATH/storage")
         run("ln -s $HOME/shared/storage $CRAFT_PATH/storage")
 
-        run("ln -s $HOME/shared/node_modules $HOME/current/node_modules")
-        run("cd $HOME/current && npm install")
-
-        run("cd $HOME/current && browserify assets/js/_main.js -o assets/js/bundle.js")
-
         run("ln -s $HOME/shared/static $HOME/current/public/static")
         run("cd $HOME/current && harp compile assets public/static")
 
@@ -482,7 +477,7 @@ def clean(method=False):
 
 @task
 def find(query=""):
-    local("ack "+query+" --ignore-dir=craft/plugins --ignore-dir=craft/storage --ignore-dir=.vagrant --ignore-dir=vendor --ignore-dir=.git --ignore-file=is:bundle.js")
+    local("ack "+query+" --ignore-dir=craft/plugins --ignore-dir=craft/storage --ignore-dir=.vagrant --ignore-dir=vendor --ignore-dir=.git")
 
 
 @task

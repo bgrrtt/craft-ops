@@ -145,6 +145,10 @@ download_craft:
       - user
       - group
 
+/usr/local/bin/yiic:
+  file.symlink:
+    - target: {{ craft_path }}/app/etc/console/yiic
+
 {{ craft_path }}/config:
   file.symlink:
     - user: {{ user }}
@@ -237,11 +241,11 @@ node_global_wetty:
     - require:
       - pkg: nodejs
 
-node_global_watchify:
+node_global_weinre:
   cmd:
     - run
-    - name: npm install -g watchify
-    - unless: npm -g ls watchify | grep watchify
+    - name: npm install -g weinre@2.0.0-pre-I0Z7U9OV
+    - unless: npm -g ls weinre | grep weinre
     - require:
       - pkg: nodejs
 
@@ -269,13 +273,6 @@ install_bower_components:
     - user: {{ user }}
     - require:
       - file: {{ user }}_bowerrc
-
-install_node_modules:
-  cmd.run:
-    - name: npm install --no-bin-links
-    - cwd: {{ project_path }}
-    - user: {{ user }}
-    - onlyif: test -f {{ project_path }}/package.json
 
 {{ user }}_git_config:
   file.managed:
@@ -328,11 +325,6 @@ install_node_modules:
 {{ supervise("dev", home, user, group, {
         "harp": {
             "command": "harp server",
-            "directory": assets_path,
-            "user": user
-        },
-        "watchify": {
-          "command": "watchify js/_main.js -o js/bundle.js --poll=1000",
             "directory": assets_path,
             "user": user
         },
