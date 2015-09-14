@@ -488,3 +488,86 @@ def tree():
 @task
 def provision(): 
     local("sudo salt-call state.highstate pillar='"+json.dumps(project)+"' -l debug")
+
+@task
+def up():
+
+    from boto.vpc import VPCConnection
+    connection = VPCConnection()
+
+    # Setup an aws key in `project.conf` if needed
+    if 'aws' not in project_yaml:
+        project_yaml['aws'] = {}
+
+    vpcs = connection.get_all_vpcs()
+    for vpc in vpcs:
+        # Use the default VPC provided to all new AWS accounts
+        if vpc.is_default:
+
+            region = project['aws']['region']
+            print region
+
+            instance_type = project['aws']['instance_type']
+            print instance_type
+
+            vpc_id = project['aws']['vpc_id']
+            if vpc_id is None:
+                project_yaml['aws']['vpc_id'] = vpc.id
+            pprint.pprint(vpc)
+
+            subnet_id = project['aws']['subnet_id']
+            if subnet_id is None:
+                # Use the first default subnet returned from the VPC
+                subnet = connection.get_all_subnets(filters={ "vpcId" : vpc.id })[0]
+                project_yaml['aws']['subnet_id'] = subnet.id
+            else:
+                subnet = connection.get_all_subnets(subnet_ids=subnet_id)[0]
+            pprint.pprint(subnet)
+
+            key_pair_name = project['aws']['key_pair_name']
+            if key_pair_name is None:
+                # Make a new key pair
+                key_pair = ''
+            else:
+                key_pair = connection.get_all_key_pairs(keynames=key_pair_name)[0]
+            pprint.pprint(key_pair)
+
+            security_group_id = project['aws']['security_group_id']
+            if security_group_id is None:
+                # Make a new security group
+                security_group = ''
+            else:
+                security_group = connection.get_all_security_groups(group_ids=security_group_id)[0]
+            pprint.pprint(security_group)
+
+            elastic_ip = project['aws']['elastic_ip']
+            if elastic_ip is None:
+                # Make a new instance
+                address = connection.allocate_address()
+                project_yaml['aws']['elastic_ip'] = address.public_ip
+            else:
+                address = connection.get_all_addresses(addresses=elastic_ip)[0]
+            pprint.pprint(address)
+
+            instance_id = project['aws']['instance_id']
+            if instance_id is None:
+                # Make a new instance
+                instance = ''
+            else:
+                instance = connection.get_all_instances(instance_ids=instance_id)[0]
+            pprint.pprint(instance)
+
+
+            address_allocation_id = project['aws']['address_allocation_id']
+            if address_allocation_id is None:
+                # Make a new elastic IP
+                address_allocation = ''
+            else:
+                address_allocation = connection.get_all_addresses(allocation_ids=address_allocation_id)[0]
+            pprint.pprint(address_allocation)
+
+    new_project_yaml = ruamel.yaml.dump(project_yaml, Dumper=ruamel.yaml.RoundTripDumper)
+
+    with open('project.conf', 'w') as project_file:
+        project_file.write(new_project_yaml)
+
