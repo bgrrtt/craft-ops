@@ -65,12 +65,10 @@ craft/storage/*
 
 # Craft Ops
 private.conf
-.vagrant/machines/dev
-.vagrant/machines/basebox
+.vagrant
 package.box
 vendor
 bower_components
 *.pem
 *.pub
 public/assets/*
-salt/web/root/files/authorized_keys
