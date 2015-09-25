@@ -8,7 +8,9 @@ of dragging files over to FTP and using commands instead. Ideally you learn
 a thing or two about [Unix-like][unix_like_link] systems in the process.
 
 To start, the ops workflows will be built around the use of AWS and Bitbucket.
-These products both offer free options and can be fully automated.
+These products both offer free options and can be fully automated.  By default
+this setup will stay fully within the [AWS free tier][aws_free_tier], which 
+applies to all newly setup accounts.
 
 Please also note that use of Craft is subject to their own
 [license agreement][craft_license].
@@ -197,6 +199,7 @@ Or maybe you want to sync your `dev` uploads to `production`...
 $ fab production uploads:up
 ```
 
+[aws_free_tier]: https://aws.amazon.com/free/
 [fabric_link]: http://www.fabfile.org/
 [harp_link]: http://harpjs.com/
 [npm_link]: http://npmjs.org
