@@ -100,9 +100,9 @@ def all():
 @task
 @hosts()
 def check():
-    state = get_state()
+    state = get_state(bunch=False)
 
-    pprint.pprint(state)
+    pprintpp.pprint(state)
 
 
 @task
@@ -748,7 +748,7 @@ def dict_merge(a, b):
     return result
 
 
-def get_state():
+def get_state(bunch=True):
     with open('defaults.conf') as defaults_file:
         defaults_file_content = defaults_file.read()
     defaults = yaml.load(defaults_file_content)
@@ -771,7 +771,10 @@ def get_state():
         private = yaml.load(private_file_content)
         state = dict_merge(state, private)
 
-    return bunchify(state)
+    if bunch:
+        return bunchify(state)
+    else:
+        return state
 
 
 def yaml_edit(tree):
