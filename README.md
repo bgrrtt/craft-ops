@@ -43,13 +43,13 @@ Once you have built the `dev` VM you can also use an experimental web based
 terminal @ [`http://localhost:8000/wetty`][wetty_link]. You may find this
 a more enjoyable experience.
 
-## Get started with a `dev` box...
+## Get started...
 
-It is really easy, just clone this repo and `vagrant up` the `dev` box.
+It is really easy, just clone this repo as the name of your project and `vagrant up`.
 
 ```shell
 $ git clone https://github.com/stackstrap/craft-ops.git project_name
-$ vagrant up dev
+$ vagrant up
 ```
 
 You can then hit the dev server at [`http://localhost:8000`](http://localhost:8000).
@@ -145,19 +145,13 @@ to kick off a new Craft Ops project without having to get credentials each time.
 Make sure you are in the `dev` vm
 
 ```
-$ vagrant ssh dev
+$ vagrant ssh
 ```
 
 Run the `fab` command to ready your project on Bitbucket and AWS
 
 ```
 $ fab setup
-```
-
-Then `up` the `web` vm to build it
-
-```
-$ vagrant up web
 ```
 
 # Commands
