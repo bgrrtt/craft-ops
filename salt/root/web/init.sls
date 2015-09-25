@@ -1,13 +1,14 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
+{% set project = pillar -%}
+
 {% from "stackstrap/env/macros.sls" import env -%}
 {% from "stackstrap/deploy/macros.sls" import deploy %}
 {% from "stackstrap/nginx/macros.sls" import nginxsite %}
 {% from "stackstrap/php5/macros.sls" import php5_fpm_instance %}
 {% from "stackstrap/mysql/macros.sls" import mysql_user_db %}
 
-{% set project = pillar -%}
 {% set project_name = project['name'] %}
 
 {% set stages = project['web']['stages'] %}
@@ -19,20 +20,12 @@
 
 {% set home = '/home/' + user -%}
 
-{% set project_path = home + '/current' -%}
+{% set project_path = stages[stage]['envs']['PROJECT_PATH'] -%}
+{% set vendor_path = stages[stage]['envs']['VENDOR_PATH'] -%}
+
 {% set repo = project['git']['repo'] -%}
 
 {% set port = stages[stage]['port'] -%}
-
-{% set mysql_user = stages[stage]['mysql_user'] -%}
-{% set mysql_pass = stages[stage]['mysql_pass'] -%}
-{% set mysql_db = stages[stage]['mysql_db'] -%}
-
-{% set uploads_path = home + "/shared/assets" -%}
-{% set php_vendor_path = home + "/shared/vendor" -%}
-{% set plugins_path = home + "/shared/plugins" -%}
-{% set craft_path = home + "/shared/vendor/Craft-Release-" + project['craft']['ref'] -%}
-{% set plugins = project['craft']['plugins'] %}
 
 {{ env(user, group) }}
 
@@ -52,28 +45,43 @@
           identity=home+'/.ssh/web.pem')
 }}
 
-{% set php_envs = {
-  'PROJECT_PATH': project_path,
-  'UPLOADS_PATH': uploads_path,
-  'CRAFT_ENVIRONMENT': stage,
+{% set uploads_path = home + "/shared/assets" -%}
+{% set plugins_path = home + "/shared/plugins" -%}
+{% set craft_path = home + "/shared/vendor/Craft-Release-" + project['craft']['ref'] -%}
+{% set plugins = project['craft']['plugins'] %}
+
+{% set envs = salt['pillar.get']('web:stages:'+stage+':envs', {}) %}
+
+{% set additional_envs = {
   'CRAFT_PATH': craft_path,
-  'MYSQL_USER': mysql_user,
-  'MYSQL_PASS': mysql_pass,
-  'MYSQL_DB': mysql_db,
+  'DB_HOST': project['services']['database']['host'],
 } %}
 
-{% if stages[stage]['envs'] %}
-{% for key, value in salt['pillar.get']('web:stages:'+stage+':envs', {}).iteritems() %}
-    {% do php_envs.update({key:value}) %}
+{% if envs %}
+{% for key, value in additional_envs.iteritems() %}
+    {% do envs.update({key:value}) %}
 {% endfor %}
+{% else %}
+  {% set envs = additional_envs %}
 {% endif %}
 
 {{ php5_fpm_instance(user, group, port,
                      name=project_name,
-                     envs=php_envs)
+                     envs=envs)
 }}
 
-{{ mysql_user_db(mysql_user, mysql_pass, mysql_db) }}
+{% set mysql_user = stages[stage]['envs']['DB_USERNAME'] -%}
+{% set mysql_pass = stages[stage]['envs']['DB_PASSWORD'] -%}
+{% set mysql_db = stages[stage]['envs']['DB_DATABASE'] -%}
+
+{{ mysql_user_db(mysql_user, mysql_pass, mysql_db,
+                 host=project['web']['private_ip_address'],
+                 connection={
+                   'user': project['services']['database']['username'],
+                   'pass': project['services']['database']['password'],
+                   'host': project['services']['database']['host']
+                 })
+}}
 
 {% if project['web']['server_name'] %}
   {% set web_server_name = project['web']['server_name'] if (stage == "production") else stage+'.'+project['web']['server_name'] -%}
@@ -93,6 +101,22 @@
   {% set default_server = False %}
 {% endif %}
 
+{% if stages[stage]['ssl'] %}
+{% set listen = '443' %}
+{{ home }}/ssl/{{ stage }}.key:
+  file.managed:
+    - source: salt://web/files/{{ stages[stage]['ssl_certificate_key'] }}
+    - user: {{ user }}
+    - makedirs: True
+{{ home }}/ssl/{{ stage }}.crt:
+  file.managed:
+    - source: salt://web/files/{{ stages[stage]['ssl_certificate'] }}
+    - user: {{ user }}
+    - makedirs: True
+{% else %}
+  {% set listen = '80' %}
+{% endif %}
+
 {{ nginxsite(user, group,
              project_path=project_path,
              name=project_name,
@@ -101,11 +125,22 @@
              template="salt://web/files/craft-cms.conf",
              root="public",
              static=project_path+"/public/static",
-             cors="*",
+             listen=listen,
+             ssl=stages[stage]['ssl'],
              defaults={
-                'port': port
+                'port': port,
+                'ssl_certificate': home+'/ssl/'+stage+'.crt',
+                'ssl_certificate_key': home+'/ssl/'+stage+'.key'
              })
 }}
+
+{% if stages[stage]['ssl'] %}
+{{ nginxsite(user, group,
+             name=project_name,
+             server_name=server_name,
+             template="salt://stackstrap/nginx/files/ssl-redirect.conf")
+}}
+{% endif %}
 
 {% if project['web']['deploy_keys'] %}
 {{ user }}_authorized_keys:
@@ -143,6 +178,16 @@
     - present
     - user: {{ user }}
 
+{% if project['composer']['github_token'] %}
+{{ user }}_set_composer_github_token:
+  cmd.run:
+    - name: composer config -g github-oauth.github.com  {{ project['composer']['github_token'] }}
+    - user: {{ user }}
+    - require:
+      - cmd: install_composer
+      - cmd: move_composer
+{% endif %}
+
 {{ user }}_download_craft:
   archive.extracted:
     - name: {{ home }}/shared/vendor
@@ -170,19 +215,19 @@
 {% for plugin in plugins %}
 {{ user }}_download_craft_{{ plugin['name'] }}_plugin:
   archive.extracted:
-    - name: {{ php_vendor_path }}
+    - name: {{ vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz 
     - source_hash: md5={{ plugin['md5'] }}
     - archive_format: tar
     - user: {{ user }}
     - group: {{ group }}
-    - if_missing: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    - if_missing: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
 
 {{ home }}/shared/plugins/{{ plugin['name'] }}:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
-    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['name'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['name'] }}
 {% endfor %}
 
 {{ user }}_bowerrc:

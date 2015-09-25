@@ -1,129 +1,119 @@
-from bunch import bunchify
 from fabric.api import *
+from fabric.contrib.project import rsync_project
+from bunch import bunchify
 from requests.auth import HTTPBasicAuth
 
 import base64
+import boto.vpc
+import boto.ec2
+import boto.ec2.elb
+import boto.rds2
 import copy
 import datetime
 import json
 import os
+import pprintpp
+import random
 import requests
 import ruamel.yaml
+import socket
+import string
 import time
 import yaml
-
-import pprintpp
-pprintpp.monkeypatch()
-import pprint
-
-def dict_merge(a, b):
-    '''recursively merges dict's. not just simple a['key'] = b['key'], if
-    both a and bhave a key who's value is a dict then dict_merge is called
-    on both values and the result stored in the returned dictionary.'''
-    if not isinstance(b, dict):
-        return b
-    result = copy.deepcopy(a)
-    for k, v in b.iteritems():
-        if k in result and isinstance(result[k], dict):
-                result[k] = dict_merge(result[k], v)
-        else:
-            result[k] = copy.deepcopy(v)
-    return result
-
-with open('defaults.conf') as defaults_file:
-    defaults_file_content = defaults_file.read()
-defaults = yaml.load(defaults_file_content)
-
-with open('project.conf') as project_file:
-    project_file_content = project_file.read()
-
-project_yaml = ruamel.yaml.load(project_file_content, ruamel.yaml.RoundTripLoader)
-
-project = yaml.load(project_file_content)
-project = dict_merge(defaults, project)
-
-if os.path.isfile(os.environ['HOME']+'/ops.conf'): 
-    with open(os.environ['HOME']+'/ops.conf') as ops_file:
-        ops_file_content = ops_file.read()
-    ops = yaml.load(ops_file_content)
-    project = dict_merge(project, ops)
-
-if os.path.isfile('private.conf'): 
-    with open('private.conf') as private_file:
-        private_file_content = private_file.read()
-    private = yaml.load(private_file_content)
-    project = dict_merge(project, private)
-
-stages = project['web']['stages']
 
 
 @task
 def dev():
+    state = get_state()
+
     env.hosts = ["localhost"]
     env.host = ["localhost"]
     env.host_string = ["localhost"]
-    env.stages = [project["dev"]]
+    env.stages = [state.dev]
 
 
 @task
 def web():
-    env.user = project['web']['admin']['user']
-    env.hosts = [project['web']['server']]
-    env.host = project['web']['server']
-    env.host_string = project['web']['server']
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
+    env.user = state.web.admin.user
+    env.hosts = [server]
+    env.host = server
+    env.host_string = server
     env.key_filename = 'salt/root/web/files/admin.pem'
-    
+
 
 @task
 def production():
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
     env.forward_agent = True
     env.stages = ['production']
-    env.hosts = [project['web']['server']]
-    env.host = project['web']['server']
-    env.host_string = project['web']['server']
+    env.hosts = [server]
+    env.host = server
+    env.host_string = server
 
 
 @task
 def staging():
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
     env.forward_agent = True
     env.stages = ['staging']
-    env.hosts = [project['web']['server']]
-    env.host = project['web']['server']
-    env.host_string = project['web']['server']
+    env.hosts = [server]
+    env.host = server
+    env.host_string = server
 
 
 @task
 def preview():
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
     env.forward_agent = True
     env.stages = ['preview']
-    env.hosts = [project['web']['server']]
-    env.host = project['web']['server']
-    env.host_string = project['web']['server']
+    env.hosts = [server]
+    env.host = server
+    env.host_string = server
 
 
 @task
 def all():
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
     env.forward_agent = True
     env.stages = ['production','staging','preview']
-    env.hosts = [project['web']['server']]
-    env.host = project['web']['server']
-    env.host_string = project['web']['server']
+    env.hosts = [server]
+    env.host = server
+    env.host_string = server
 
 
 @task
 @hosts()
 def check():
-    #pprint.pprint(env)
-    pprint.pprint(project)
+    state = get_state()
+
+    pprint.pprint(state)
 
 
 @task
 @hosts()
 def deploy(branch="master"):
+    state = get_state()
+
     time = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S%z")
 
     for current_stage in env.stages:
-        stage = bunchify(stages[current_stage])
+        stage = state.web.stages[current_stage]
         env.user = stage.user
 
         run("cd $HOME/source && git fetch origin "+branch)
@@ -139,7 +129,7 @@ def deploy(branch="master"):
         run("rm -rf $CRAFT_PATH/config")
         run("ln -s $HOME/current/craft/config $CRAFT_PATH/config")
 
-        if project['craft']['translations']:
+        if state.craft.translations:
             run("rm -rf $CRAFT_PATH/translations")
             run("ln -s $HOME/current/craft/translations $CRAFT_PATH/translations")
 
@@ -162,8 +152,10 @@ def deploy(branch="master"):
 @task
 @hosts()
 def uploads(method):
+    state = get_state()
+
     for current_stage in env.stages:
-        stage = bunchify(stages[current_stage])
+        stage = state.web.stages[current_stage]
         env.user = stage.user
 
         if method == "up":
@@ -175,10 +167,11 @@ def uploads(method):
 @task
 @hosts()
 def db(method):
+    state = get_state()
 
     for current_stage in env.stages:
         if isinstance(current_stage, basestring):
-            stage = bunchify(stages[current_stage])
+            stage = state.web.stages[current_stage]
         else:
             stage = bunchify(current_stage)
 
@@ -186,31 +179,33 @@ def db(method):
 
         if method == "import":
             if env.host == "localhost":
-                local("cd /tmp && mysql -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB < dump.sql")
+                local("cd /tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < dump.sql")
             else:
-                run("cd $HOME/tmp && mysql -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB < import.sql")
+                run("cd $HOME/tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < import.sql")
         if method == "dump":
             if env.host == "localhost":
-                local("cd /tmp && mysqldump -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB > dump.sql")
+                local("cd /tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
             else:
-                run("cd $HOME/tmp && mysqldump -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB > dump.sql")
+                run("cd $HOME/tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
         if method == "down":
             get("/home/"+stage.user+"/tmp/dump.sql","/tmp/dump.sql")
         if method == "up":
             put("/tmp/dump.sql","/home/"+stage.user+"/tmp/import.sql")
         if method == "sync":
-            run("cd $HOME/tmp && mysqldump -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB > dump.sql")
+            run("cd $HOME/tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
             get("/home/"+stage.user+"/tmp/dump.sql","/tmp/dump.sql")
-            local("cd /tmp && mysql -u $MYSQL_USER -h localhost -p$MYSQL_PASS $MYSQL_DB < dump.sql")
+            local("cd /tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < dump.sql")
             
 
 
 @task
 @hosts()
 def releases(method="clean"):
+    state = get_state()
+
     if method == "clean":
         for current_stage in env.stages:
-            stage = bunchify(stages[current_stage])
+            stage = state.web.stages[current_stage]
             env.user = stage.user
 
             output = run("ls $HOME/releases")
@@ -229,116 +224,350 @@ def releases(method="clean"):
 
 @task
 @hosts('localhost')
-def setup(method=False):
+def cleanup(method=False):
+    if (not method) or (method == 'database'):
+        state = get_state()
 
-    #
-    # Full setup
-    #
+        services = state.services
 
-    if (not method):
+        project, private = yaml_edit("services.database")
 
-        if 'web' not in project_yaml:
-            project_yaml['web'] = {}
+        conn = boto.rds2.connect_to_region(services.region)
 
-        local("openssl genrsa -out salt/root/web/files/admin.pem 2048")
-        local("chmod 600 salt/root/web/files/admin.pem")
-        local("ssh-keygen -f salt/root/web/files/admin.pem -y > salt/root/web/files/admin.pub")
+        if project['services']['database']:
+            conn.delete_db_instance(state.name, skip_final_snapshot=True)
 
-        local("openssl genrsa -out salt/root/web/files/web.pem 2048")
-        local("chmod 600 salt/root/web/files/web.pem")
-        local("ssh-keygen -f salt/root/web/files/web.pem -y > salt/root/web/files/web.pub")
+            database = conn.describe_db_instances(db_instance_identifier=state.name)['DescribeDBInstancesResponse']['DescribeDBInstancesResult']['DBInstances'][0]
 
-    #
-    # AWS
-    #
+            while database['DBInstanceStatus'] == 'deleting':
+                print '...database instance status: %s' % database['DBInstanceStatus']
+                time.sleep(10)
+                #RDS2 does not offer an "update" method
+                try:
+                    database = conn.describe_db_instances(db_instance_identifier=state.name)['DescribeDBInstancesResponse']['DescribeDBInstancesResult']['DBInstances'][0]
+                except:
+                    break
 
-    if (not method) or (method == "aws"):
+            conn.delete_db_subnet_group(services.database.subnet_group)
 
-        if 'aws' not in project_yaml:
-            project_yaml['aws'] = {}
+            project['services'].pop('database')
+            private['services'].pop('database')
 
-        if 'web' not in project_yaml:
-            project_yaml['web'] = {}
+            # Clear password and host for each stage
+            for name, item in state.web.stages.items():
+                private['web']['stages'][name]['envs'].pop('DB_PASSWORD', None)
 
-        with open("salt/root/web/files/admin.pub", "rb") as public_key:
-            project_yaml['web']['key_fingerprint'] = json.loads(local("aws ec2 import-key-pair --key-name "+project['name']+" --public-key-material \"`cat salt/root/web/files/admin.pub`\"", capture=True))['KeyFingerprint']
+        yaml_save( { 'project': project, 'private': private } )
 
-        elastic_ip = json.loads(local("aws ec2 allocate-address --domain vpc", capture=True))
-        project_yaml['web']['server'] = elastic_ip['PublicIp']
-        project_yaml['aws']['elastic_ip'] = elastic_ip['PublicIp']
-        project_yaml['aws']['address_allocation_id'] = elastic_ip['AllocationId']
+    if (not method) or (method == 'web'):
+        state = get_state()
 
-        vpc = json.loads(local("aws ec2 create-vpc --cidr-block 10.0.0.0/16", capture=True))['Vpc']
-        print vpc
-        project_yaml['aws']['vpc_id'] = vpc['VpcId']
+        services = state.services
 
-        local("aws ec2 modify-vpc-attribute --vpc-id "+vpc['VpcId']+" --enable-dns-support", capture=True)
-        local("aws ec2 modify-vpc-attribute --vpc-id "+vpc['VpcId']+" --enable-dns-hostnames", capture=True)
+        project, private = yaml_edit("web")
 
-        internet_gateway = json.loads(local("aws ec2 create-internet-gateway", capture=True))['InternetGateway']
-        print internet_gateway
-        project_yaml['aws']['internet_gateway_id'] = internet_gateway['InternetGatewayId']
+        conn = boto.ec2.connect_to_region(services.region)
 
-        local("aws ec2 attach-internet-gateway --internet-gateway-id "+internet_gateway['InternetGatewayId']+" --vpc-id "+vpc['VpcId'])
+        if project['web']['instance_id']:
+            conn.terminate_instances([state.web.instance_id])
 
-        subnet = json.loads(local("aws ec2 create-subnet --vpc-id "+vpc['VpcId']+" --cidr-block 10.0.0.0/24", capture=True))['Subnet']
-        print subnet
-        project_yaml['aws']['subnet_id'] = subnet['SubnetId']
+            instance = conn.get_only_instances(instance_ids=[state.web.instance_id])[0]
 
-        route_table = json.loads(local("aws ec2 create-route-table --vpc-id "+vpc['VpcId'], capture=True))['RouteTable']
-        print route_table
-        project_yaml['aws']['route_table_id'] = route_table['RouteTableId']
+            while instance.state == 'shutting-down':
+                print '...instance status: %s' % instance.state
+                time.sleep(10)
+                try:
+                    instance.update()
+                except:
+                    break
 
-        local("aws ec2 associate-route-table --route-table-id "+route_table['RouteTableId']+" --subnet-id "+subnet['SubnetId'])
-        local("aws ec2 create-route --route-table-id "+route_table['RouteTableId']+" --destination-cidr-block 0.0.0.0/0 --gateway-id "+internet_gateway['InternetGatewayId'])
+            # Attempt to remove IP entry local known_hosts file 
+            try:
+                local('ssh-keygen -R "'+state.services.public_ips.web.address+'"')
+            except:
+                pass
 
-        security_group = json.loads(local("aws ec2 create-security-group --vpc-id "+vpc['VpcId']+"  --group-name "+project['name']+" --description 'Web server.'", capture=True))
-        print security_group 
 
-        for port in project['web']['open_ports']:
-            local("aws ec2 authorize-security-group-ingress --group-id "+security_group['GroupId']+" --protocol tcp --port "+str(port)+" --cidr 0.0.0.0/0")
+        project['web'].pop('vpc_id', None)
+        project['web'].pop('subnet_id', None)
+        project['web'].pop('placement', None)
+        project['web'].pop('instance_id', None)
+        project['web'].pop('address_association_id', None)
+        project['web'].pop('private_ip_address', None)
 
-        project_yaml['aws']['security_groups'] = [security_group['GroupId']]
+        yaml_save( { 'project': project, 'private': private } )
 
-    #
-    # Bitbucket
-    #
+    if (not method) or (method == 'services'):
+        state = get_state()
 
-    if (not method) or (method == "bitbucket"):
-        project_yaml['bitbucket'] = {}
-        project_yaml['git'] = {}
+        services = state.services
 
-        project_name = project['name']
-        bitbucket_user = project['bitbucket']['user']
-        bitbucket_token = project['bitbucket']['token']
+        project, private = yaml_edit("services")
+
+        conn = boto.vpc.connect_to_region(services.region)
+
+        for name, item in services.key_pairs.items():
+            conn.delete_key_pair(name+'-'+state.name)
+            local('rm -f '+item.private)
+            local('rm -f '+item.public)
+
+        if project['services']['public_ips']:
+            for public_ip_name, public_ip in services.public_ips.items():
+                conn.release_address(allocation_id=public_ip.allocation_id)
+
+            project['services'].pop('public_ips')
+
+        if project['services']['security_groups']:
+            for name, item in services.security_groups.items():
+                conn.delete_security_group(group_id=item['id'])
+
+            project['services'].pop('security_groups')
+
+        if project['services']['vpc']:
+            from collections import OrderedDict
+            for zone, item in project['services']['vpc']['subnets'].items():
+                conn.delete_subnet(dict(OrderedDict(item))['id'])
+
+            conn.delete_route_table(services.vpc.route_table_id)
+
+            conn.detach_internet_gateway(services.vpc.internet_gateway_id, services.vpc.id)
+            conn.delete_internet_gateway(services.vpc.internet_gateway_id)
+
+            conn.delete_vpc(services.vpc.id)
+
+            project['services'].pop('vpc')
+
+        project.pop('services')
+
+        yaml_save( { 'project': project } )
+
+    if (not method) or (method == "git"):
+        state = get_state()
+
+        services = state.services
+
+        project, private = yaml_edit("git")
+
+        project_name = state.name
+        bitbucket_user = state.bitbucket.user
+        bitbucket_token = state.bitbucket.token
         auth = HTTPBasicAuth(bitbucket_user, bitbucket_token)
-        ssh_pub_key = local("ssh-keygen -f salt/root/web/files/web.pem -y", capture=True)
-        repo_url = "git@bitbucket.org:"+bitbucket_user+"/"+project_name+".git"
 
         req = requests.get('https://api.bitbucket.org/2.0/repositories/'+bitbucket_user+'/'+project_name, auth=auth)
 
+        if req.status_code == 200:
+            data = { 'owner': bitbucket_user, 'repo_slug': project_name }
+            req = requests.delete('https://api.bitbucket.org/1.0/repositories/'+bitbucket_user+'/'+project_name, data=data, auth=auth)
+
+            if req.status_code == 204:
+                project.pop('git')
+
+        yaml_save( { 'project': project } )
+            
+
+@task
+@hosts('localhost')
+def setup(method=False):
+    if (not method) or (method == 'services'):
+        state = get_state()
+
+        services = state.services
+        
+        project, private = yaml_edit("services")
+
+        conn = boto.vpc.connect_to_region(services.region)
+
+        if 'vpc' not in project['services']:
+
+            project['services']['vpc'] = {}
+
+            vpc = conn.create_vpc(services.vpc.cidr_block)
+            project['services']['vpc']['id'] = vpc.id
+
+            conn.modify_vpc_attribute(vpc.id, enable_dns_support=True)
+            conn.modify_vpc_attribute(vpc.id, enable_dns_hostnames=True)
+
+            internet_gateway = conn.create_internet_gateway()
+            project['services']['vpc']['internet_gateway_id'] = internet_gateway.id
+
+            conn.attach_internet_gateway(internet_gateway.id, vpc.id)
+
+            route_table = conn.create_route_table(vpc.id)
+            project['services']['vpc']['route_table_id'] = route_table.id
+
+            conn.create_route(route_table.id, '0.0.0.0/0', internet_gateway.id)
+
+            subnets = {}
+            for zone, item in services.vpc.subnets.items():
+                try:
+                    subnet = conn.create_subnet(
+                        vpc.id,
+                        item.cidr_block,
+                        availability_zone=zone
+
+                    )
+
+                    subnets[zone] = {
+                        'id': subnet.id
+                    }
+
+                    conn.associate_route_table(route_table.id, subnet.id)
+                except:
+                    pass
+
+            project['services']['vpc']['subnets'] = subnets
+
+        for key_name, key in state.services.key_pairs.items():
+            if not os.path.isfile(key.private): 
+                # Make new key pair
+                local("openssl genrsa -out "+key.private+" 2048")
+                local("chmod 600 "+key.private)
+                local("ssh-keygen -f "+key.private+" -y > "+key.public)
+
+                with open(key.public) as public_key:
+                    conn.import_key_pair(key_name+'-'+state.name, public_key.read())
+
+        if 'security_groups' not in project['services']:
+            project['services']['security_groups'] = {}
+
+            security_groups = {}
+            for name, item in state.services.security_groups.items():
+                # Make a new security group
+                security_group = conn.create_security_group(
+                    name+'-'+state.name,
+                    item.description,
+                    vpc_id=vpc.id
+                )
+
+                for rule in item.rules:
+                    security_group.authorize('tcp', rule.port, rule.port, rule.source)
+
+                security_groups[name] = {
+                    'id': security_group.id
+                }
+
+                project['services']['security_groups'] = security_groups
+
+        if 'public_ips' not in project['services']:
+            project['services']['public_ips'] = {}
+
+            public_ips = state.services.public_ips
+            for ip_name, ip in public_ips.items():
+                # Make a new pulic ip
+                address = conn.allocate_address(domain='vpc')
+                project['services']['public_ips'][ip_name] = {
+                    'address': address.public_ip,
+                    'allocation_id': address.allocation_id
+                }
+
+        yaml_save( { 'project': project } )
+
+    if (not method) or (method == 'database'):
+        state = get_state()
+
+        services = state.services
+
+        conn = boto.rds2.connect_to_region(services.region)
+
+        project, private = yaml_edit("services.database")
+
+        if not project['services']['database']:
+
+            subnet_ids = []
+            for zone, subnet in project['services']['vpc']['subnets'].items():
+                subnet_ids.append(subnet['id'])    
+
+            conn.create_db_subnet_group(
+                state.name,
+                'Default db subnet group.',
+                subnet_ids
+            )
+
+            admin_username = services.database.username if services.database.username else 'admin'
+            admin_password = services.database.password if services.database.password else random_generator()
+
+            conn.create_db_instance(
+                state.name,
+                services.database.size,
+                services.database.instance_class,
+                services.database.engine,
+                admin_username,
+                admin_password,
+                db_subnet_group_name=state.name,
+                vpc_security_group_ids=[services.security_groups.database.id]
+            )
+
+            database = conn.describe_db_instances(db_instance_identifier=state.name)['DescribeDBInstancesResponse']['DescribeDBInstancesResult']['DBInstances'][0]
+
+            while database['DBInstanceStatus'] != 'available':
+                print '...database instance status: %s' % database['DBInstanceStatus']
+                time.sleep(10)
+                #RDS2 does not offer an "update" method
+                try:
+                    database = conn.describe_db_instances(db_instance_identifier=state.name)['DescribeDBInstancesResponse']['DescribeDBInstancesResult']['DBInstances'][0]
+                except:
+                    break
+
+            project['services']['database']['host'] = database['Endpoint']['Address']
+            project['services']['database']['subnet_group'] = state.name
+            project['services']['database']['username'] = admin_username
+
+            private['services']['database']['password'] = admin_password
+
+            # Generate passwords for each stage and add host
+            if 'web' not in project:
+                project['web'] = {}
+                project['web']['stages'] = {}
+
+            if 'web' not in private:
+                private['web'] = {}
+                private['web']['stages'] = {}
+
+            for name, item in state.web.stages.items():
+                if name not in project['web']['stages']:
+                    project['web']['stages'][name] = {}
+                    project['web']['stages'][name]['envs'] = {}
+
+                if name not in private['web']['stages']:
+                    private['web']['stages'][name] = {}
+                    private['web']['stages'][name]['envs'] = {}
+
+                private['web']['stages'][name]['envs']['DB_PASSWORD'] = random_generator()
+
+        yaml_save( { 'project': project, 'private': private } )
+
+
+    if (not method) or (method == 'git'):
+        state = get_state()
+
+        project, private = yaml_edit("git")
+
+        auth = HTTPBasicAuth(state.bitbucket.user, state.bitbucket.token)
+        
+        ssh_pub_key = local("cat "+state.services.key_pairs.web.public, capture=True)
+        repo_url = "git@bitbucket.org:"+state.bitbucket.user+"/"+state.name+".git"
+
+        req = requests.get('https://api.bitbucket.org/2.0/repositories/'+state.bitbucket.user+'/'+state.name, auth=auth)
         if req.status_code == 404:
             data = {
                 'scm': 'git',
-                'owner': bitbucket_user,
-                'repo_slug': project_name,
+                'owner': state.bitbucket.user,
+                'repo_slug': state.name,
                 'is_private': True
             }
-            req = requests.post('https://api.bitbucket.org/2.0/repositories/'+bitbucket_user+'/'+project_name, data=data, auth=auth)
-            pprint.pprint(req.json())
+            req = requests.post('https://api.bitbucket.org/2.0/repositories/'+state.bitbucket.user+'/'+state.name, data=data, auth=auth)
+            pprintpp.pprint(req.json())
 
-        req = requests.get('https://bitbucket.org/api/1.0/repositories/'+bitbucket_user+'/'+project_name+'/deploy-keys', auth=auth)
-
+        req = requests.get('https://bitbucket.org/api/1.0/repositories/'+state.bitbucket.user+'/'+state.name+'/deploy-keys', auth=auth)
         if req.status_code == 200:
             data = {
-                'accountname': bitbucket_user,
-                'repo_slug': project_name,
-                'label': project_name,
+                'accountname': state.bitbucket.user,
+                'repo_slug': state.name,
+                'label': state.name,
                 'key': ssh_pub_key
             }
-            req = requests.post('https://bitbucket.org/api/1.0/repositories/'+bitbucket_user+'/'+project_name+'/deploy-keys', data=data, auth=auth)
-            project_yaml['bitbucket']['deploy_key_id'] = req.json()['pk']
-            pprint.pprint(req.json())
+            req = requests.post('https://bitbucket.org/api/1.0/repositories/'+state.bitbucket.user+'/'+state.name+'/deploy-keys', data=data, auth=auth)
+            pprintpp.pprint(req.json())
 
         with settings(warn_only=True):
             has_git_dir = local("test -d .git", capture=True)
@@ -351,128 +580,140 @@ def setup(method=False):
         else:
             local("git remote set-url origin "+repo_url)
 
-        project_yaml['git']['repo'] = repo_url
+        project['git']['repo'] = repo_url
 
-    #
-    # Update YAML
-    #
+        yaml_save( { 'project': project } )
 
-    new_project_yaml = ruamel.yaml.dump(project_yaml, Dumper=ruamel.yaml.RoundTripDumper)
 
-    with open('project.conf', 'w') as project_file:
-        project_file.write(new_project_yaml)
+    if (not method) or (method == 'web'):
+        state = get_state()
+
+        services = state.services
+        
+        project, private = yaml_edit("web")
+
+        conn = boto.ec2.connect_to_region(services.region)
+
+        project['web']['vpc_id'] = state.services.vpc.id
+
+        subnet_ids = []
+        id_to_zone = {}
+        for zone, item in services.vpc.subnets.items():
+            if item['id'] is not None:
+                subnet_ids.append(item['id'])
+                id_to_zone[item['id']] = zone
+
+        subnet_id = random.choice(subnet_ids)
+        placement = id_to_zone[subnet_id]
+
+        project['web']['subnet_id'] = subnet_id
+        project['web']['placement'] = placement
+
+        security_group_ids = []
+        for name in state.web.security_groups:
+            security_group_ids.append(services.security_groups[name].id)
+
+        if 'instance_id' not in project['web']:
+            # Make a new instance
+            instance = conn.run_instances(
+                state.web.ami_id,
+                instance_type=state.web.instance_type,
+                key_name=state.web.key_pair+'-'+state.name,
+                placement=placement,
+                subnet_id=subnet_id,
+                security_group_ids=security_group_ids
+            ).instances[0]
+
+            while instance.state != 'running':
+                print '... waitng for web instance to become ready'
+                time.sleep(10)
+                instance.update()
+
+            instance = conn.get_only_instances(instance_ids=[instance.id])[0]
+
+            project['web']['instance_id'] = instance.id
+            project['web']['private_ip_address'] = instance.private_ip_address
+
+        if 'address_association_id' not in project['web']:
+            address_association_id = conn.associate_address_object(
+                instance_id=instance.id,
+                allocation_id=state.services.public_ips.web.allocation_id
+            ).association_id
+
+            project['web']['address_association_id'] = address_association_id
+
+            #Now we need to wait for "Initializing" to finish, let's keep trying to reach the server
+            reachable = False
+            while not reachable:
+                print '... waitng for web instance to become ready'
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    s.connect((state.services.public_ips.web.address, 22))
+                    reachable = True
+                except:
+                    pass
+                s.close()
+
+        if 'load_balancer' not in project['web'] and state.web.load_balancer.enabled:
+            conn = boto.ec2.elb.connect_to_region(services.region)
+
+            project['web']['load_balancer'] = {}
+
+            security_group_ids = []
+            for name in state.web.load_balancer.security_groups:
+                security_group_ids.append(services.security_groups[name].id)
+
+            load_balancer = conn.create_load_balancer(
+                name=state.name,
+                zones=None,
+                subnets=subnet_ids,
+                listeners=[(80, 80, 'tcp'), (443, 80, 'tcp')],
+                security_groups=security_group_ids
+            )
+
+            project['web']['load_balancer']['name'] = state.name
+
+            conn.register_instances(
+                state.name,
+                [instance.id]
+            )
+
+        yaml_save( { 'project': project, 'private': private } )
+
+        # Auto-add the host to known_hosts
+        local("ssh-keyscan -t rsa "+state.services.public_ips.web.address+" >> ~/.ssh/known_hosts")
+
+        # Provision the newly created instance
+        local("fab web provision")
 
 
 @task
-@hosts('localhost')
-def clean(method=False):
+@hosts()
+def provision():
+    state = get_state()
 
-    if (not method) or (method == "aws"):
+    if env.host == 'localhost':
+        local("sudo salt-call state.highstate pillar='"+json.dumps(state)+"' -l debug")
+    else:
+        user = state.web.admin.user
+        group = state.web.admin.group
 
-        #
-        # AWS
-        #
+        # Get the files where they need to be before provisioning
+        sudo("mkdir -p /project")
+        sudo("chown -R "+user+":"+group+" /project")
+        rsync_project("/project/", "./", exclude=["private.conf",".vagrant",".git","*admin.pem", "vendor"])
 
-        local("aws ec2 delete-key-pair --key-name "+project['name'], capture=True)
+        with settings(warn_only=True):
+            if run("which salt-call").return_code != 0:
+                # Install Salt
+                run("cd /tmp && curl -L https://bootstrap.saltstack.com -o install_salt.sh")
+                sudo("cd /tmp && sh install_salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
 
-        project_yaml['web'].pop('key_fingerprint', None)
+        # Copy the minion config into place
+        sudo("cp /project/salt/config/web.conf /etc/salt/minion")
 
-        if project['aws']['address_allocation_id']:
-            with settings(warn_only=True):
-                local("aws ec2 release-address --allocation-id "+project['aws']['address_allocation_id'], capture=True)
-
-        project_yaml['web'].pop('server', None)
-
-        vpc_id = project['aws']['vpc_id']
-
-        security_groups = local("aws ec2 describe-security-groups --filters Name=vpc-id,Values="+vpc_id+" --output json --query 'SecurityGroups[]'", capture=True)
-        if security_groups != "": 
-            for security_group in json.loads(security_groups):
-                print security_group
-                if security_group['GroupName'] != 'default':
-                    local("aws ec2 delete-security-group --group-id "+security_group['GroupId'], capture=True)
-        else:
-            print "No SecurityGroups"
-
-        internet_gateways = local("aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values="+vpc_id+" --output json --query 'InternetGateways[]'", capture=True)
-        if internet_gateways != "": 
-            for internet_gateway in json.loads(internet_gateways):
-                print internet_gateway
-                for attachment in internet_gateway['Attachments']:
-                    print attachment
-                    local("aws ec2 detach-internet-gateway --internet-gateway-id "+internet_gateway['InternetGatewayId']+" --vpc-id "+attachment['VpcId'])
-                    local("aws ec2 delete-internet-gateway --internet-gateway-id "+internet_gateway['InternetGatewayId'])
-        else:
-            print "No InternetGateways"
-
-        subnets = local("aws ec2 describe-subnets --filters Name=vpc-id,Values="+vpc_id+" --output json --query 'Subnets[]'", capture=True)
-        if subnets != "":
-            for subnet in json.loads(subnets):
-                print subnet
-                local("aws ec2 delete-subnet --subnet-id "+subnet['SubnetId'])
-        else:
-            print "No Subnets"
-
-        route_tables = local("aws ec2 describe-route-tables --filters Name=vpc-id,Values="+vpc_id+" --output json --query 'RouteTables[]'", capture=True)
-        if route_tables != "":
-            for route_table in json.loads(route_tables):
-                print route_table
-                if len(route_table['Associations']) < 1:
-                    local("aws ec2 delete-route-table --route-table-id "+route_table['RouteTableId'])
-        else:
-            print "No RouteTables"
-
-        vpc = local("aws ec2 describe-vpcs --filters Name=vpc-id,Values="+vpc_id+" --output json --query 'Vpcs[]'", capture=True)
-        if vpc != "":
-            local("aws ec2 delete-vpc --vpc-id "+vpc_id)
-        else:
-            print "No Vpc"
-
-        project_yaml.pop('aws', None)
-
-    if (not method) or (method == "bitbucket"):
-        #
-        # Bitbucket
-        #
-
-        project_name = project['name']
-        bitbucket_user = project['bitbucket']['user']
-        bitbucket_token = project['bitbucket']['token']
-        bitbucket_deploy_key_id = str(project['bitbucket']['deploy_key_id'])
-        auth = HTTPBasicAuth(bitbucket_user, bitbucket_token)
-
-        req = requests.get('https://api.bitbucket.org/2.0/repositories/'+bitbucket_user+'/'+project_name, auth=auth)
-
-        if req.status_code == 200:
-            data = { 'accountname': bitbucket_user, 'repo_slug': project_name, 'pk': bitbucket_deploy_key_id }
-            req = requests.delete('https://api.bitbucket.org/1.0/repositories/'+bitbucket_user+'/'+project_name+'/deploy-keys/'+bitbucket_deploy_key_id, data=data, auth=auth)
-
-            if req.status_code == 204:
-                project_yaml['bitbucket'].pop('deploy_key_id', None)
-
-
-    #
-    # Full clean
-    #
-
-    if (not method):
-        local("rm -f salt/root/web/files/admin.pem")
-        local("rm -f salt/root/web/files/admin.pub")
-        local("rm -f salt/root/web/files/web.pem")
-        local("rm -f salt/root/web/files/web.pub")
-
-        project_yaml.pop('bitbucket', None)
-        project_yaml.pop('git', None)
-
-
-    #
-    # Update YAML
-    #
-
-    new_project_yaml = ruamel.yaml.dump(project_yaml, Dumper=ruamel.yaml.RoundTripDumper)
-
-    with open('project.conf', 'w') as project_file:
-        project_file.write(new_project_yaml)
+        # Provision the machine
+        sudo("salt-call state.highstate pillar='"+json.dumps(state)+"' -l debug")
 
 
 @task
@@ -486,88 +727,105 @@ def tree():
 
 
 @task
-def provision(): 
-    local("sudo salt-call state.highstate pillar='"+json.dumps(project)+"' -l debug")
+def ssh():
+    state = get_state()
 
-@task
-def up():
-
-    from boto.vpc import VPCConnection
-    connection = VPCConnection()
-
-    # Setup an aws key in `project.conf` if needed
-    if 'aws' not in project_yaml:
-        project_yaml['aws'] = {}
-
-    vpcs = connection.get_all_vpcs()
-    for vpc in vpcs:
-        # Use the default VPC provided to all new AWS accounts
-        if vpc.is_default:
-
-            region = project['aws']['region']
-            print region
-
-            instance_type = project['aws']['instance_type']
-            print instance_type
-
-            vpc_id = project['aws']['vpc_id']
-            if vpc_id is None:
-                project_yaml['aws']['vpc_id'] = vpc.id
-            pprint.pprint(vpc)
-
-            subnet_id = project['aws']['subnet_id']
-            if subnet_id is None:
-                # Use the first default subnet returned from the VPC
-                subnet = connection.get_all_subnets(filters={ "vpcId" : vpc.id })[0]
-                project_yaml['aws']['subnet_id'] = subnet.id
-            else:
-                subnet = connection.get_all_subnets(subnet_ids=subnet_id)[0]
-            pprint.pprint(subnet)
-
-            key_pair_name = project['aws']['key_pair_name']
-            if key_pair_name is None:
-                # Make a new key pair
-                key_pair = ''
-            else:
-                key_pair = connection.get_all_key_pairs(keynames=key_pair_name)[0]
-            pprint.pprint(key_pair)
-
-            security_group_id = project['aws']['security_group_id']
-            if security_group_id is None:
-                # Make a new security group
-                security_group = ''
-            else:
-                security_group = connection.get_all_security_groups(group_ids=security_group_id)[0]
-            pprint.pprint(security_group)
-
-            elastic_ip = project['aws']['elastic_ip']
-            if elastic_ip is None:
-                # Make a new instance
-                address = connection.allocate_address()
-                project_yaml['aws']['elastic_ip'] = address.public_ip
-            else:
-                address = connection.get_all_addresses(addresses=elastic_ip)[0]
-            pprint.pprint(address)
-
-            instance_id = project['aws']['instance_id']
-            if instance_id is None:
-                # Make a new instance
-                instance = ''
-            else:
-                instance = connection.get_all_instances(instance_ids=instance_id)[0]
-            pprint.pprint(instance)
+    local("ssh -i salt/root/web/files/admin.pem "+state.web.admin.user+"@"+state.services.public_ips.web.address)
 
 
-            address_allocation_id = project['aws']['address_allocation_id']
-            if address_allocation_id is None:
-                # Make a new elastic IP
-                address_allocation = ''
-            else:
-                address_allocation = connection.get_all_addresses(allocation_ids=address_allocation_id)[0]
-            pprint.pprint(address_allocation)
+def dict_merge(a, b):
+    '''recursively merges dict's. not just simple a['key'] = b['key'], if
+    both a and bhave a key who's value is a dict then dict_merge is called
+    on both values and the result stored in the returned dictionary.'''
+    if not isinstance(b, dict):
+        return b
+    result = copy.deepcopy(a)
+    for k, v in b.iteritems():
+        if k in result and isinstance(result[k], dict):
+                result[k] = dict_merge(result[k], v)
+        else:
+            result[k] = copy.deepcopy(v)
+    return result
 
-    new_project_yaml = ruamel.yaml.dump(project_yaml, Dumper=ruamel.yaml.RoundTripDumper)
 
-    with open('project.conf', 'w') as project_file:
-        project_file.write(new_project_yaml)
+def get_state():
+    with open('defaults.conf') as defaults_file:
+        defaults_file_content = defaults_file.read()
+    defaults = yaml.load(defaults_file_content)
 
+    with open('project.conf') as project_file:
+        project_file_content = project_file.read()
+    project = yaml.load(project_file_content)
+
+    state = dict_merge(defaults, project)
+
+    if os.path.isfile(os.environ['HOME']+'/ops.conf'):
+        with open(os.environ['HOME']+'/ops.conf') as ops_file:
+            ops_file_content = ops_file.read()
+        ops = yaml.load(ops_file_content)
+        state = dict_merge(state, ops)
+
+    if os.path.isfile('private.conf'):
+        with open('private.conf') as private_file:
+            private_file_content = private_file.read()
+        private = yaml.load(private_file_content)
+        state = dict_merge(state, private)
+
+    return bunchify(state)
+
+
+def yaml_edit(tree):
+    files = { "project": {}, "private": {} }
+
+    tree = tree.split('.')
+
+    for name, item in files.items():
+        if os.path.isfile(name+'.conf'): 
+            with open(name+'.conf') as opened_file:
+                file_content = opened_file.read()
+        else:
+            file_content = tree[0]+": null"
+
+        files[name] = ruamel.yaml.load(file_content, ruamel.yaml.RoundTripLoader)
+
+        for index, value in enumerate(tree):
+            if index == 0:
+                if value not in files[name] or not files[name][value]:
+                    files[name][value] = {}
+
+            if index >= 1:
+                if value not in files[name][tree[0]]:
+                    files[name][tree[0]][value] = {}
+
+            if index >= 2:
+                if value not in files[name][tree[0]][tree[1]]:
+                    files[name][tree[0]][tree[1]][value] = {}
+
+    return files['project'], files['private']
+
+
+def yaml_save(objects):
+    for name, item in objects.items():
+        item = remove_empty(item)
+        
+        if item:
+            with open(name+'.conf', 'w+') as outfile:
+                outfile.write( ruamel.yaml.dump(item, Dumper=ruamel.yaml.RoundTripDumper) )
+        else:
+            try:
+                os.remove(name+'.conf')
+            except:
+                pass
+
+
+def random_generator(size=16, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for x in range(size))
+
+
+def remove_empty(yaml):
+    for name, item in yaml.items():
+        if type(item) is dict or type(item) is ruamel.yaml.comments.CommentedMap:
+            remove_empty(item)
+        if not item and item != 0 and item != False:
+            yaml.pop(name)
+    return yaml

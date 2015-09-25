@@ -25,9 +25,10 @@
 {% set git_email = project['git']['email'] %}
 {% set git_name = project['git']['name'] %}
 
-{% set mysql_user = project['dev']['mysql_user'] %}
-{% set mysql_pass = project['dev']['mysql_pass'] %}
-{% set mysql_db = project['dev']['mysql_db'] %}
+{% set mysql_user = project['dev']['envs']['DB_USERNAME'] -%}
+{% set mysql_pass = project['dev']['envs']['DB_PASSWORD'] -%}
+{% set mysql_db = project['dev']['envs']['DB_DATABASE'] -%}
+{% set mysql_host = project['dev']['envs']['DB_HOST'] -%}
 
 {{ mysql_user_db(mysql_user, mysql_pass) }}
 
@@ -218,20 +219,19 @@ download_craft_{{ plugin['name'] }}_plugin:
         aws_access_key: {{ aws_access_key }}
         aws_secret_key: {{ aws_secret_key }}
         region: us-east-1
-{% endif %}
 
-install_vagrant:
-  pkg.installed:
-    - sources:
-      - vagrant: https://dl.bintray.com/mitchellh/vagrant/vagrant_1.7.2_x86_64.deb
-
-install_vagrant_aws:
-  cmd.run:
-    - name: source ~/.profile; vagrant plugin install vagrant-aws
+{{ home }}/.boto:
+  file.managed:
+    - source: salt://dev/files/.boto
+    - template: jinja
     - user: {{ user }}
-    - unless: vagrant plugin list | grep 'vagrant-aws'
-    - require:
-      - pkg: install_vagrant
+    - group: {{ group }}
+    - mode: 600
+    - defaults:
+        aws_access_key: {{ aws_access_key }} 
+        aws_secret_key: {{ aws_secret_key }} 
+        region: {{ project['services']['region'] }}
+{% endif %}
 
 node_global_wetty:
   cmd:

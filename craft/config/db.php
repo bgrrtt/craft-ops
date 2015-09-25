@@ -10,9 +10,9 @@
 return array(
     '*' => array(
         'tablePrefix' => 'craft',
-        'server' => '127.0.0.1',
-        'user' => getenv("MYSQL_USER"),
-        'password' => getenv("MYSQL_PASS"),
-        'database' => getenv("MYSQL_DB"),
+        'server' => getenv("DB_HOST"),
+        'user' => getenv("DB_USERNAME"),
+        'password' => getenv("DB_PASSWORD"),
+        'database' => getenv("DB_DATABASE"),
     ),
 );
