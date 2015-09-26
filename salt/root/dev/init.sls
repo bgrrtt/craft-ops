@@ -204,7 +204,11 @@ download_craft_{{ plugin['name'] }}_plugin:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
-    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['name'] }}
+    {% if plugin['base_dir'] %}
+    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
+    {% else %}
+    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    {% endif %}
 {% endfor %}
 
 {% if aws_access_key %}
