@@ -19,6 +19,7 @@ import ruamel.yaml
 import socket
 import string
 import time
+import urllib
 import yaml
 
 
@@ -731,6 +732,20 @@ def ssh():
     state = get_state()
 
     local("ssh -i salt/root/web/files/admin.pem "+state.web.admin.user+"@"+state.services.public_ips.web.address)
+
+
+@task
+def craft(method=False):
+    state = get_state()
+
+    if (not method) or (method == 'plugins'):
+        plugins = state.craft.plugins
+        plugin_names = []
+
+        for plugin in plugins:
+            plugin_names.append(plugin.name)
+
+        local("curl http://localhost:8000/plugins.php?plugins="+urllib.quote_plus(json.dumps(plugin_names)))
 
 
 def dict_merge(a, b):

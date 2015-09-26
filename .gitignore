@@ -72,3 +72,4 @@ bower_components
 *.pem
 *.pub
 public/assets/*
+public/plugins.php

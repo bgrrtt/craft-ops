@@ -107,6 +107,12 @@ install_legit_aliases:
              })
 }}
 
+{{ project_path }}/public/plugins.php:
+  file.managed:
+    - source: salt://dev/files/plugins.php
+    - user: {{ user }}
+    - group: {{ group }}
+
 {{ php_vendor_path }}:
   file.directory:
     - user: {{ user }}
