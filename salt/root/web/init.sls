@@ -142,7 +142,8 @@
 }}
 {% endif %}
 
-{% if project['web']['deploy_keys'] %}
+{% set deploy_keys = salt['pillar.get']('web:deploy_keys', {}) %}
+{% if deploy_keys %}
 {{ user }}_authorized_keys:
   file.managed:
     - name: {{ home }}/.ssh/authorized_keys
@@ -152,8 +153,8 @@
     - template: jinja
     - defaults:
       deploy_keys:
-        {% for name in project['web']['deploy_keys'] %}
-        - {{ project['web']['deploy_keys'][name] }}
+        {% for name, key in deploy_keys.items() %}
+        - {{ key }}
         {% endfor %}
 {% endif %}
 
@@ -228,7 +229,11 @@
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['name'] }}
+    {% if 'base_path' in plugin %}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_path'] }}
+    {% else %}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    {% endif %}
 {% endfor %}
 
 {{ user }}_bowerrc:
