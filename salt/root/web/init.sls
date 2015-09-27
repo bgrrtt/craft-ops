@@ -212,8 +212,9 @@
     - group: {{ group }}
     - makedirs: True
 
-{% for plugin in plugins %}
-{{ user }}_download_craft_{{ plugin['name'] }}_plugin:
+{% set plugins = salt['pillar.get']('craft:plugins', {}) %}
+{% for plugin_name, plugin in plugins.items() %}
+{{ user }}_download_craft_{{ plugin_name }}_plugin:
   archive.extracted:
     - name: {{ vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz 
@@ -223,7 +224,7 @@
     - group: {{ group }}
     - if_missing: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
 
-{{ home }}/shared/plugins/{{ plugin['name'] }}:
+{{ home }}/shared/plugins/{{ plugin_name }}:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
