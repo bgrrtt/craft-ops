@@ -180,8 +180,10 @@ download_craft:
     - group: {{ group }}
     - target: {{ project_path }}/templates
 
-{% for plugin in plugins %}
-download_craft_{{ plugin['name'] }}_plugin:
+{% set plugins = salt['pillar.get']('craft:plugins', {}) %}
+
+{% for name, plugin in plugins.items() %}
+download_craft_{{ name }}_plugin:
   archive.extracted:
     - name: {{ php_vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz
@@ -200,11 +202,11 @@ download_craft_{{ plugin['name'] }}_plugin:
       - user
       - group
 
-{{ home }}/plugins/{{ plugin['name'] }}:
+{{ home }}/plugins/{{ name }}:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
-    {% if plugin['base_dir'] %}
+    {% if 'base_dir' in plugin %}
     - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
     {% else %}
     - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}

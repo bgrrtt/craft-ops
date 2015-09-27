@@ -742,8 +742,8 @@ def craft(method=False):
         plugins = state.craft.plugins
         plugin_names = []
 
-        for plugin in plugins:
-            plugin_names.append(plugin.name)
+        for name, item in plugins.items():
+            plugin_names.append(name)
 
         local("curl http://localhost:8000/plugins.php?plugins="+urllib.quote_plus(json.dumps(plugin_names)))
 
