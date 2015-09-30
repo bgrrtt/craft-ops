@@ -1,7 +1,7 @@
 <?php
 
 // Environment to be used in craft/config/general.php
-define('CRAFT_ENVIRONMENT', getenv('APP_ENV'));
+define('CRAFT_ENVIRONMENT', getenv('CRAFT_ENVIRONMENT'));
 
 // Path to your craft/ folder
 define('CRAFT_PATH', getenv('CRAFT_PATH'));
