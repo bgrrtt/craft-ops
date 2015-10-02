@@ -369,6 +369,33 @@ def cleanup(method=False):
 @task
 @hosts('localhost')
 def setup(method=False):
+    if (not method) or (method == 'dev'):
+
+        project, private = get_input()
+
+        yaml_save( { 'project': project, 'private': private } )
+
+        state = get_state()
+
+        key_pair = state.services.key_pairs.dev
+
+        local("openssl genrsa -out "+key_pair.private+" 2048")
+        local("chmod 600 "+key_pair.private)
+        local("ssh-keygen -f "+key_pair.private+" -y > "+key_pair.public)
+
+        public_key_data = local("cat " + key_pair.public, capture=True)
+
+        pprintpp.pprint(project)
+
+        if 'web' not in project:
+            project['web'] = {}
+        if 'deploy_keys' not in project['web']:
+            project['web']['deploy_keys'] = {}
+
+        project['web']['deploy_keys']['dev'] = str(public_key_data)
+
+        yaml_save( { 'project': project, 'private': private } )
+
     if (not method) or (method == 'services'):
         state = get_state()
 
@@ -766,13 +793,14 @@ def dict_merge(a, b):
 def get_state(bunch=True):
     with open('defaults.conf') as defaults_file:
         defaults_file_content = defaults_file.read()
-    defaults = yaml.load(defaults_file_content)
 
-    with open('project.conf') as project_file:
-        project_file_content = project_file.read()
-    project = yaml.load(project_file_content)
+    state = yaml.load(defaults_file_content)
 
-    state = dict_merge(defaults, project)
+    if os.path.isfile('project.conf'):
+        with open('project.conf') as project_file:
+            project_file_content = project_file.read()
+        project = yaml.load(project_file_content)
+        state = dict_merge(state, project)
 
     if os.path.isfile(os.environ['HOME']+'/ops.conf'):
         with open(os.environ['HOME']+'/ops.conf') as ops_file:
@@ -818,6 +846,39 @@ def yaml_edit(tree):
             if index >= 2:
                 if value not in files[name][tree[0]][tree[1]]:
                     files[name][tree[0]][tree[1]][value] = {}
+
+    return files['project'], files['private']
+
+
+def get_input():
+    files = { "project": {}, "private": {} }
+
+    for name, item in files.items():
+        if os.path.isfile(name+'.conf'): 
+            with open(name+'.conf') as opened_file:
+                file_content = opened_file.read()
+
+            files[name] = ruamel.yaml.load(file_content, ruamel.yaml.RoundTripLoader)
+
+        if type(files[name]) is not dict or type(files[name]) is ruamel.yaml.comments.CommentedMap:
+            files[name] = {}
+
+        if name == 'project':
+            if 'name' not in files[name]:
+                files[name]['name'] = raw_input("Enter a computer safe name for the project:")
+
+            if 'craft' not in files[name]:
+                files[name]['craft'] = {}
+
+            if 'username' not in files[name]['craft']:
+                files[name]['craft']['username'] = raw_input("Enter a username for the craft user:")
+
+        if name == 'private':
+            if 'craft' not in files[name]:
+                files[name]['craft'] = {}
+
+            if 'password' not in files[name]['craft']:
+                files[name]['craft']['password'] = raw_input("Enter a password for the craft user:")
 
     return files['project'], files['private']
 
