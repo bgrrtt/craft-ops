@@ -873,6 +873,15 @@ def get_input():
             if 'username' not in files[name]['craft']:
                 files[name]['craft']['username'] = raw_input("Enter a username for the craft user:")
 
+            if 'email' not in files[name]['craft']:
+                files[name]['craft']['email'] = raw_input("Enter an email address for the craft user:")
+
+            if 'web' not in files[name]:
+                files[name]['web'] = {}
+
+            if 'server_name' not in files[name]['web']:
+                files[name]['web']['server_name'] = raw_input("Enter the project domain name:")
+
         if name == 'private':
             if 'craft' not in files[name]:
                 files[name]['craft'] = {}
