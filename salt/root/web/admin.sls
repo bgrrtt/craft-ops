@@ -3,21 +3,19 @@
 
 {% from "stackstrap/env/macros.sls" import env -%}
 
-{% set project = pillar -%}
-{% set project_name = project['name'] -%}
+{% set project = salt['pillar.get']('project', {}) %}
+{% set web = salt['pillar.get']('web', {}) %}
 
-{% set user = 'ubuntu' -%}
-{% set group = 'ubuntu' -%}
+{% set user = web.admin.user -%}
+{% set group = web.admin.group -%}
 
 {% set home = "/home/"+user -%}
-{% set project_path = "/project" -%}
 
 {{ env(user, group) }}
 
 python_requirements:
-  cmd:
-    - run
-    - name: "pip install -r {{ project_path }}/salt/root/web/files/requirements.txt"
+  pip.installed:
+    - requirements: salt://web/files/requirements.txt
 
 admin_private_key:
   file.managed:
@@ -33,5 +31,3 @@ admin_profile_setup:
     - name: {{ home }}/.profile
     - user: {{ user }}
     - template: jinja
-    - defaults:
-      project_path: {{ project_path }}

@@ -18,6 +18,7 @@ import requests
 import ruamel.yaml
 import socket
 import string
+import sys
 import time
 import urllib
 import yaml
@@ -353,8 +354,8 @@ def cleanup(method=False):
         project, private = yaml_edit("git")
 
         project_name = state.name
-        bitbucket_user = state.bitbucket.user
-        bitbucket_token = state.bitbucket.token
+        bitbucket_user = state.dev.envs.BITBUCKET_USER
+        bitbucket_token = state.dev.envs.BITBUCKET_PASS_TOKEN
         auth = HTTPBasicAuth(bitbucket_user, bitbucket_token)
 
         req = requests.get('https://api.bitbucket.org/2.0/repositories/'+bitbucket_user+'/'+project_name, auth=auth)
@@ -367,18 +368,33 @@ def cleanup(method=False):
                 project.pop('git')
 
         yaml_save( { 'project': project } )
+
+    if (not method) or (method == 'dev'):
+        state = get_state()
+
+        project, private = yaml_edit("dev")
+
+        key_pair = state.services.key_pairs.dev
+
+        local('rm -f '+key_pair.private)
+        local('rm -f '+key_pair.public)
+
+        project['web']['deploy_keys'].pop('dev')
+
+        yaml_save( { 'project': project, 'private': private } )
             
 
 @task
 @hosts('localhost')
 def setup(method=False):
+
+    project, private = get_input()
+    yaml_save( { 'project': project, 'private': private } )
+
     if (not method) or (method == 'dev'):
-
-        project, private = get_input()
-
-        yaml_save( { 'project': project, 'private': private } )
-
         state = get_state()
+
+        project, private = yaml_edit("web")
 
         key_pair = state.services.key_pairs.dev
 
@@ -387,8 +403,6 @@ def setup(method=False):
         local("ssh-keygen -f "+key_pair.private+" -y > "+key_pair.public)
 
         public_key_data = local("cat " + key_pair.public, capture=True)
-
-        pprintpp.pprint(project)
 
         if 'web' not in project:
             project['web'] = {}
@@ -575,31 +589,31 @@ def setup(method=False):
 
         project, private = yaml_edit("git")
 
-        auth = HTTPBasicAuth(state.bitbucket.user, state.bitbucket.token)
+        auth = HTTPBasicAuth(state.dev.envs.BITBUCKET_USER, state.dev.envs.BITBUCKET_PASS_TOKEN)
         
         ssh_pub_key = local("cat "+state.services.key_pairs.web.public, capture=True)
-        repo_url = "git@bitbucket.org:"+state.bitbucket.user+"/"+state.name+".git"
+        repo_url = "git@bitbucket.org:"+state.dev.envs.BITBUCKET_USER+"/"+state.name+".git"
 
-        req = requests.get('https://api.bitbucket.org/2.0/repositories/'+state.bitbucket.user+'/'+state.name, auth=auth)
+        req = requests.get('https://api.bitbucket.org/2.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.name, auth=auth)
         if req.status_code == 404:
             data = {
                 'scm': 'git',
-                'owner': state.bitbucket.user,
+                'owner': state.dev.envs.BITBUCKET_USER,
                 'repo_slug': state.name,
                 'is_private': True
             }
-            req = requests.post('https://api.bitbucket.org/2.0/repositories/'+state.bitbucket.user+'/'+state.name, data=data, auth=auth)
+            req = requests.post('https://api.bitbucket.org/2.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.name, data=data, auth=auth)
             pprintpp.pprint(req.json())
 
-        req = requests.get('https://bitbucket.org/api/1.0/repositories/'+state.bitbucket.user+'/'+state.name+'/deploy-keys', auth=auth)
+        req = requests.get('https://bitbucket.org/api/1.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.name+'/deploy-keys', auth=auth)
         if req.status_code == 200:
             data = {
-                'accountname': state.bitbucket.user,
+                'accountname': state.dev.envs.BITBUCKET_USER,
                 'repo_slug': state.name,
                 'label': state.name,
                 'key': ssh_pub_key
             }
-            req = requests.post('https://bitbucket.org/api/1.0/repositories/'+state.bitbucket.user+'/'+state.name+'/deploy-keys', data=data, auth=auth)
+            req = requests.post('https://bitbucket.org/api/1.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.name+'/deploy-keys', data=data, auth=auth)
             pprintpp.pprint(req.json())
 
         with settings(warn_only=True):
@@ -738,14 +752,17 @@ def provision():
         rsync_project("/srv/", "./salt/", exclude=["*admin.pem","*dev.pem"])
 
         with settings(warn_only=True):
-            if run("which salt-call").return_code != 0:
+            check_for_salt = run("which salt-call")
+            if check_for_salt.return_code != 0:
                 # Install Salt
                 run("cd /tmp && wget https://github.com/saltstack/salt-bootstrap/archive/v2015.08.06.tar.gz -q")
 
-                md5 = run("cd /tmp && md5sum v2015.08.06.tar.gz").strip()
-                if md5 == "60110888b0af976640259dea5f9b6727":
-                    run("cd /tmp && tar -xvf v2015.08.06.tar.gz")
-                    run("cd /tmp sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
+                md5 = run("cd /tmp && md5sum v2015.08.06.tar.gz | awk '{ print $1 }'").strip()
+                if md5 != "60110888b0af976640259dea5f9b6727":
+                    sys.exit()
+
+                run("cd /tmp && tar -xvf v2015.08.06.tar.gz")
+                run("cd /tmp && sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
 
         # Provision the machine
         state['role'] = 'web'
@@ -868,7 +885,7 @@ def get_input():
 
             files[name] = ruamel.yaml.load(file_content, ruamel.yaml.RoundTripLoader)
 
-        if type(files[name]) is not dict or type(files[name]) is ruamel.yaml.comments.CommentedMap:
+        if type(files[name]) is not dict and type(files[name]) is not ruamel.yaml.comments.CommentedMap:
             files[name] = {}
 
         if name == 'project':

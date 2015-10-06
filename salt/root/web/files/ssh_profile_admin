@@ -1,6 +1,2 @@
-cd {{ project_path }}
-export GIT_EDITOR=vim
-export SASS_LIBSASS_PATH="/usr/local/lib/libsass"
 ssh-add ~/.ssh/web.pem
-
 source ~/.bashrc

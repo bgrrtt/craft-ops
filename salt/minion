@@ -16,4 +16,4 @@ gitfs_remotes:
 
 file_roots:
   base:
-    - /project/salt/root
+    - /srv/root
