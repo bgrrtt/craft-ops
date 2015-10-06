@@ -1,13 +1,3 @@
-export PROJECT_PATH={{ project_path }}
-export CRAFT_PATH={{ craft_path }}
-export GIT_EDITOR=vim
-export SASS_LIBSASS_PATH="/usr/local/lib/libsass"
-export CRAFT_ENVIRONMENT={{ stage }}
-export MYSQL_USER={{ mysql_user }}
-export MYSQL_PASS={{ mysql_pass }}
-export MYSQL_DB={{ mysql_db }}
-export UPLOADS_PATH={{ uploads_path }}
-
 {% if envs %}
 {% for env in envs %}
 export {{ env['key'] }}="{{ env['value'] }}"

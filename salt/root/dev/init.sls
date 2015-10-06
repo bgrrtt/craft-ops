@@ -7,39 +7,58 @@
 {% from "stackstrap/mysql/macros.sls" import mysql_user_db %}
 {% from "stackstrap/env/macros.sls" import env %}
 
-{% set project = pillar -%}
+{% set project = salt['pillar.get']('project', {}) %}
+{% set services = salt['pillar.get']('services', {}) %}
+{% set dev = salt['pillar.get']('dev', {}) %}
+{% set git = salt['pillar.get']('git', {}) %}
+{% set craft = salt['pillar.get']('craft', {}) %}
 
-{% set project_name = project['name'] -%}
-{% set aws_access_key = project['aws']['access_key'] -%}
-{% set aws_secret_key = project['aws']['secret_key'] -%}
-{% set bitbucket_user = project['bitbucket']['user'] -%}
-{% set bitbucket_pass_token = project['bitbucket']['token'] -%}
+{% set user = dev.user %}
+{% set group = dev.group %}
 
-{% set user = project['dev']['user'] -%}
-{% set group = project['dev']['group'] -%}
-{% set home = "/home/" + user -%}
-{% set project_path = project['dev']['path'] -%}
-{% set assets_path = project['dev']['path'] + "/assets" -%}
+{% set envs = dev.envs %}
 
-{% set git_repo = project['git']['repo'] %}
-{% set git_email = project['git']['email'] %}
-{% set git_name = project['git']['name'] %}
+{% set additional_envs = {
+  'CRAFT_PATH': envs.VENDOR_PATH + "/Craft-Release-" + craft.ref
+} %}
 
-{% set mysql_user = project['dev']['envs']['DB_USERNAME'] -%}
-{% set mysql_pass = project['dev']['envs']['DB_PASSWORD'] -%}
-{% set mysql_db = project['dev']['envs']['DB_DATABASE'] -%}
-{% set mysql_host = project['dev']['envs']['DB_HOST'] -%}
+{% for key, value in additional_envs.iteritems() %}
+    {% do envs.update({key:value}) %}
+{% endfor %}
 
-{{ mysql_user_db(mysql_user, mysql_pass) }}
+{% set home = envs.HOME %}
+{% set project_path = envs.PROJECT_PATH %}
+{% set assets_path = project_path + '/assets' %}
+{% set craft_path = envs.CRAFT_PATH %}
+{% set vendor_path = envs.VENDOR_PATH %}
+{% set uploads_path = envs.UPLOADS_PATH %}
 
-{% set uploads_path = project_path + "/public/assets" -%}
-{% set php_vendor_path = project_path + "/vendor" -%}
-{% set vagrant_host_os = salt['grains.get']('vagrant_host_os', '') %}
-{% if vagrant_host_os == 'windows' %}
-  {% set php_vendor_path = home + "/vendor" -%}
-{% endif %}
-{% set craft_path = php_vendor_path + "/Craft-Release-" + project['craft']['ref'] -%}
-{% set plugins = project['craft']['plugins'] %}
+{{ env(user, group) }}
+  
+{{ php5_fpm_instance(user, group, '5000',
+                     envs=envs)
+}}
+
+{{ mysql_user_db(envs.DB_USERNAME, envs.DB_PASSWORD,
+                 dump=project_path+'/salt/root/dev/files/backup.sql') }}
+
+{{ nginxsite(user, group,
+             template="salt://dev/files/craft-cms.conf",
+	           root="public",
+             listen="8000",
+             server_name="_",
+             defaults={
+                'port': '5000'
+             })
+}}
+
+{{ user }}_ssh_config:
+  file.managed:
+    - name: {{ home }}/.ssh/config
+    - source: salt://dev/files/ssh_config
+    - template: jinja
+    - makedirs: True
+    - user: {{ user }}
 
 python_requirements:
   pip.installed:
@@ -61,59 +80,13 @@ install_legit_aliases:
     - require:
       - pip: python_requirements
 
-{{ user }}_mysql_import:
-  cmd.run:
-    - name: unzip -p {{ project_path }}/salt/root/dev/files/craft-cms-backup.zip | mysql -u {{ mysql_user }} -p{{ mysql_pass }} {{ mysql_db }}
-    - unless: mysql -u {{ mysql_user }} -p{{ mysql_pass }} {{ mysql_db }} -e "SHOW TABLES LIKE 'craft_info'" | grep 'craft_info'
-
-{{ env(user, group) }}
-
-{{ user }}_ssh_config:
-  file.managed:
-    - name: {{ home }}/.ssh/config
-    - source: salt://dev/files/ssh_config
-    - template: jinja
-    - makedirs: True
-    - user: {{ user }}
-
-{% set php_envs = {
-  'CRAFT_ENVIRONMENT': 'local',
-  'CRAFT_PATH': craft_path,
-  'PROJECT_PATH': project_path,
-  'UPLOADS_PATH': uploads_path,
-  'MYSQL_USER': mysql_user,
-  'MYSQL_PASS': mysql_pass,
-  'MYSQL_DB': mysql_db
-} %}
-
-{% if project['dev']['envs'] %}
-{% for key, value in salt['pillar.get']('dev:envs', {}).iteritems() %}
-    {% do php_envs.update({key:value}) %}
-  {% endfor %}
-{% endif %}
-  
-{{ php5_fpm_instance(user, group, '5000',
-                     envs=php_envs)
-}}
-
-{{ nginxsite(user, group,
-             template="salt://dev/files/craft-cms.conf",
-	           root="public",
-             listen="8000",
-             server_name="_",
-             cors="*",
-             defaults={
-                'port': '5000'
-             })
-}}
-
 {{ project_path }}/public/plugins.php:
   file.managed:
     - source: salt://dev/files/plugins.php
     - user: {{ user }}
     - group: {{ group }}
 
-{{ php_vendor_path }}:
+{{ vendor_path }}:
   file.directory:
     - user: {{ user }}
     - group: {{ group }}
@@ -135,9 +108,9 @@ install_legit_aliases:
 
 download_craft:
   archive.extracted:
-    - name: {{ php_vendor_path }}
-    - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ project['craft']['ref'] }}.tar.gz
-    - source_hash: md5={{ project['craft']['md5'] }}
+    - name: {{ vendor_path }}
+    - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ craft.ref }}.tar.gz
+    - source_hash: md5={{ craft.md5 }}
     - archive_format: tar
     - user: {{ user }}
     - group: {{ group }}
@@ -180,20 +153,19 @@ download_craft:
     - group: {{ group }}
     - target: {{ project_path }}/templates
 
-{% set plugins = salt['pillar.get']('craft:plugins', {}) %}
 
-{% for name, plugin in plugins.items() %}
+{% for name, plugin in craft.plugins.items() %}
 download_craft_{{ name }}_plugin:
   archive.extracted:
-    - name: {{ php_vendor_path }}
+    - name: {{ vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz
     - source_hash: md5={{ plugin['md5'] }}
     - archive_format: tar
     - user: {{ user }}
     - group: {{ group }}
-    - if_missing: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    - if_missing: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
 
-{{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}:
+{{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}:
   file.directory:
     - user: {{ user }}
     - group: {{ group }}
@@ -207,13 +179,13 @@ download_craft_{{ name }}_plugin:
     - user: {{ user }}
     - group: {{ group }}
     {% if 'base_dir' in plugin %}
-    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
     {% else %}
-    - target: {{ php_vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
     {% endif %}
 {% endfor %}
 
-{% if aws_access_key %}
+{% if envs.AWS_ACCESS_KEY %}
 {{ home }}/.aws:
   file.directory:
     - user: {{ user }}
@@ -228,8 +200,8 @@ download_craft_{{ name }}_plugin:
     - group: {{ group }}
     - mode: 600
     - defaults:
-        aws_access_key: {{ aws_access_key }}
-        aws_secret_key: {{ aws_secret_key }}
+        aws_access_key: {{ envs.AWS_ACCESS_KEY }}
+        aws_secret_key: {{ envs.AWS_SECRET_KEY }}
         region: us-east-1
 
 {{ home }}/.boto:
@@ -240,9 +212,9 @@ download_craft_{{ name }}_plugin:
     - group: {{ group }}
     - mode: 600
     - defaults:
-        aws_access_key: {{ aws_access_key }} 
-        aws_secret_key: {{ aws_secret_key }} 
-        region: {{ project['services']['region'] }}
+        aws_access_key: {{ envs.AWS_ACCESS_KEY }}
+        aws_secret_key: {{ envs.AWS_SECRET_KEY }}
+        region: {{ services.region }}
 {% endif %}
 
 node_global_wetty:
@@ -297,8 +269,8 @@ install_bower_components:
       - user: {{ user }}
     - defaults:
         home: {{ home }}
-        git_email: {{ git_email }}
-        git_name: {{ git_name }}
+        git_email: {{ git.email }}
+        git_name: {{ git.name }}
 
 {{ user }}_ssh_profile:
   file.managed:
@@ -311,28 +283,11 @@ install_bower_components:
       - user: {{ user }}
     - defaults:
       project_path: {{ project_path }}
-      mysql_user: {{ mysql_user }}
-      mysql_pass: {{ mysql_pass }}
-      mysql_db: {{ mysql_db }}
-      {% if aws_access_key %}
-      aws_access_key: {{ aws_access_key }}
-      aws_secret_key: {{ aws_secret_key }}
-      {% endif %}
-      {% if bitbucket_user %}
-      bitbucket_user: {{ bitbucket_user }}
-      bitbucket_pass_token: {{ bitbucket_pass_token }}
-      {% endif %}
-      uploads_path: {{ uploads_path }}
-      craft_path: {{ craft_path }}
-      {% if project['dev']['envs'] %}
       envs:
-        {% for key, value in salt['pillar.get']('dev:envs', {}).iteritems() %}
+        {% for key, value in envs.iteritems() %}
         - key: {{ key }}
           value: "{{ value }}"
         {% endfor %}
-      {% else %}
-      envs: False
-      {% endif %}
 
 {{ supervise("dev", home, user, group, {
         "harp": {

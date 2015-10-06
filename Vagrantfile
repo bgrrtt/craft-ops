@@ -10,26 +10,29 @@ def deep_merge!(other_hash)
   end
 end
 
-defaults = YAML::load_file('defaults.conf')
-defaults.deep_merge!(YAML::load_file('project.conf'))
+$state = YAML::load_file('defaults.conf')
 
-$project = defaults
+$state['role'] = 'dev'
 
 if File.exist?(ENV['HOME']+'/ops.conf')
-  $project.deep_merge!(YAML::load_file(ENV['HOME']+'/ops.conf'))
+  $state.deep_merge!(YAML::load_file(ENV['HOME']+'/ops.conf'))
+end
+if File.exist?('project.conf')
+  $state.deep_merge!(YAML::load_file('project.conf'))
 end
 if File.exist?('private.conf')
-  $project.deep_merge!(YAML::load_file('private.conf'))
+  $state.deep_merge!(YAML::load_file('private.conf'))
 end
+
 
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  config.vm.box = $project['dev']['vagrant']['box']
-  config.vm.box_url = $project['dev']['vagrant']['box_url']
-  config.vm.box_download_checksum_type = $project['dev']['vagrant']['box_download_checksum_type']
-  config.vm.box_download_checksum = $project['dev']['vagrant']['box_download_checksum']
+  config.vm.box = $state['dev']['vagrant']['box']
+  config.vm.box_url = $state['dev']['vagrant']['box_url']
+  config.vm.box_download_checksum_type = $state['dev']['vagrant']['box_download_checksum_type']
+  config.vm.box_download_checksum = $state['dev']['vagrant']['box_download_checksum']
 
   config.ssh.forward_agent = true
 
@@ -37,35 +40,61 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.synced_folder ".", "/project"
 
+  config.vm.synced_folder "salt", "/srv"
+
   if File.exist?(ENV['HOME']+'/ops.conf')
     config.vm.provision :file,
       source: '~/ops.conf',
-      destination: $project['dev']['ops_conf_path']
+      destination: $state['dev']['ops_conf_path']
   end
 
   config.vm.provision :shell,
-    path: $salt_install,
-    :args => '-P -p python-dev -p python-pip -p python-git -p unzip',
+    inline: $install_salt,
     :keep_color => true
 
   config.vm.provision :shell,
-    inline: 'sudo cp /project/salt/config/dev.conf /etc/salt/minion'
-
-  if (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
-    config.vm.provision :shell,
-      inline: 'sudo salt-call grains.setval vagrant_host_os windows'
-  elsif (/darwin/ =~ RUBY_PLATFORM) != nil
-    config.vm.provision :shell,
-      inline: 'sudo salt-call grains.setval vagrant_host_os osx'
-  else
-    config.vm.provision :shell,
-      inline: 'sudo salt-call grains.setval vagrant_host_os linux'
-  end
-
-  config.vm.provision :shell,
-    inline: "sudo salt-call state.highstate --retcode-passthrough --log-level=info pillar='#{$project.to_json}'",
+    inline: $run_salt_states,
     :keep_color => true
 
 end
 
-$salt_install = "https://raw.githubusercontent.com/saltstack/salt-bootstrap/stable/bootstrap-salt.sh"
+$run_salt_states = <<SCRIPT
+  ORANGE='\e[0;33m'
+  BLUE='\e[0;34m'
+  NC='\e[0m' # No Color
+
+  if [[ `which salt-call` == "/usr/bin/salt-call" ]]
+    then
+      echo "[${BLUE}Running Salt states (May take up to 20 minutes the first time)...${NC}]" 
+
+      sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/srv' --log-level=quiet pillar='#{$state.to_json}'
+
+      echo "[${BLUE}The machine is provisioned and ready for use :)${NC}]"
+  fi
+SCRIPT
+
+$install_salt = <<SCRIPT
+  ORANGE='\e[0;33m'
+  BLUE='\e[0;34m'
+  NC='\e[0m' # No Color
+
+  if [[ `which salt-call` != "/usr/bin/salt-call" ]]
+    then
+      echo "[${BLUE}Installing Salt (May take up to 10 minutes)...${NC}]"
+
+      cd /tmp
+
+      wget https://github.com/saltstack/salt-bootstrap/archive/v2015.08.06.tar.gz -q >/dev/null
+
+      if [ `md5sum v2015.08.06.tar.gz | awk '{ print $1 }'` != "60110888b0af976640259dea5f9b6727" ]
+        then exit 1
+      fi
+
+      tar -xvf v2015.08.06.tar.gz >/dev/null
+
+      sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip >/dev/null
+
+  else
+    echo "[${ORANGE}Salt is installed.${NC}]"
+  fi
+SCRIPT

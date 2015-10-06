@@ -188,6 +188,9 @@ def db(method):
                 local("cd /tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
             else:
                 run("cd $HOME/tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
+        if method == "backup":
+            if env.host == "localhost":
+                local("mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > salt/root/dev/files/backup.sql")
         if method == "down":
             get("/home/"+stage.user+"/tmp/dump.sql","/tmp/dump.sql")
         if method == "up":
@@ -545,10 +548,12 @@ def setup(method=False):
             # Generate passwords for each stage and add host
             if 'web' not in project:
                 project['web'] = {}
-                project['web']['stages'] = {}
-
             if 'web' not in private:
                 private['web'] = {}
+
+            if 'stages' not in project['web']:
+                project['web']['stages'] = {}
+            if 'stages' not in private['web']:
                 private['web']['stages'] = {}
 
             for name, item in state.web.stages.items():
@@ -721,27 +726,30 @@ def provision():
     state = get_state()
 
     if env.host == 'localhost':
-        local("sudo salt-call state.highstate pillar='"+json.dumps(state)+"' -l debug")
+        state['role'] = 'dev'
+        local("sudo salt-call state.highstate --config-dir='/srv' pillar='"+json.dumps(state)+"' -l debug")
     else:
         user = state.web.admin.user
         group = state.web.admin.group
 
         # Get the files where they need to be before provisioning
-        sudo("mkdir -p /project")
-        sudo("chown -R "+user+":"+group+" /project")
-        rsync_project("/project/", "./", exclude=["private.conf",".vagrant",".git","*admin.pem", "vendor"])
+        sudo("mkdir -p /srv")
+        sudo("chown -R "+user+":"+group+" /srv")
+        rsync_project("/srv/", "./salt/", exclude=["*admin.pem","*dev.pem"])
 
         with settings(warn_only=True):
             if run("which salt-call").return_code != 0:
                 # Install Salt
-                run("cd /tmp && curl -L https://bootstrap.saltstack.com -o install_salt.sh")
-                sudo("cd /tmp && sh install_salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
+                run("cd /tmp && wget https://github.com/saltstack/salt-bootstrap/archive/v2015.08.06.tar.gz -q")
 
-        # Copy the minion config into place
-        sudo("cp /project/salt/config/web.conf /etc/salt/minion")
+                md5 = run("cd /tmp && md5sum v2015.08.06.tar.gz").strip()
+                if md5 == "60110888b0af976640259dea5f9b6727":
+                    run("cd /tmp && tar -xvf v2015.08.06.tar.gz")
+                    run("cd /tmp sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
 
         # Provision the machine
-        sudo("salt-call state.highstate pillar='"+json.dumps(state)+"' -l debug")
+        state['role'] = 'web'
+        sudo("salt-call state.highstate --config-dir='/srv' pillar='"+json.dumps(state)+"' -l debug")
 
 
 @task
