@@ -790,6 +790,22 @@ def ssh():
 def craft(method=False):
     state = get_state()
 
+    if (not method) or (method == 'install'):
+        plugins = state.craft.plugins
+        plugin_names = []
+
+        for name, item in plugins.items():
+            plugin_names.append(name)
+
+        email = urllib.quote_plus(state.craft.email)
+        username = urllib.quote_plus(state.craft.username)
+        password =  urllib.quote_plus(state.craft.password)
+        siteName = urllib.quote_plus(state.name)
+        server_name = urllib.quote_plus(state.web.server_name)
+
+        local("curl 'http://localhost:8000/index.php?p=admin/actions/install/install' -H 'X-Requested-With: XMLHttpRequest' --data 'username="+username+"&email="+email+"&password="+password+"&siteName="+siteName+"&siteUrl=http%3A%2F%2F"+server_name+"&locale=en_us' --compressed")
+
+
     if (not method) or (method == 'plugins'):
         plugins = state.craft.plugins
         plugin_names = []
