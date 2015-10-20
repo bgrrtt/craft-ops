@@ -1,142 +1,121 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
-{% set project = pillar -%}
-
 {% from "stackstrap/env/macros.sls" import env -%}
 {% from "stackstrap/deploy/macros.sls" import deploy %}
 {% from "stackstrap/nginx/macros.sls" import nginxsite %}
 {% from "stackstrap/php5/macros.sls" import php5_fpm_instance %}
 {% from "stackstrap/mysql/macros.sls" import mysql_user_db %}
 
-{% set project_name = project['name'] %}
+{% set craft = salt['pillar.get']('craft', {}) %}
+{% set database = salt['pillar.get']('database', {}) %}
+{% set git = salt['pillar.get']('git', {}) %}
+{% set project = salt['pillar.get']('project', {}) %}
+{% set web = salt['pillar.get']('web', {}) %}
 
-{% set stages = project['web']['stages'] %}
+{% for stage_name, stage in web.stages.items() %}
 
-{% for stage in stages %}
-
-{% set user = stages[stage]['user'] -%}
-{% set group = stages[stage]['group'] -%}
+{% set user = stage.user -%}
+{% set group = stage.group -%}
 
 {% set home = '/home/' + user -%}
 
-{% set project_path = stages[stage]['envs']['PROJECT_PATH'] -%}
-{% set vendor_path = stages[stage]['envs']['VENDOR_PATH'] -%}
-
-{% set repo = project['git']['repo'] -%}
-
-{% set port = stages[stage]['port'] -%}
-
-{{ env(user, group) }}
-
-{{ user }}_private_key:
-  file.managed:
-    - name: {{ home }}/.ssh/web.pem
-    - source: salt://web/files/web.pem
-    - makedirs: True
-    - user: {{ user }}
-    - mode: 600
-
-{{ deploy(user, group,
-          repo=repo,
-          remote_name='origin',
-          bower=True,
-          node=True,
-          identity=home+'/.ssh/web.pem')
-}}
-
-{% set uploads_path = home + "/shared/assets" -%}
-{% set plugins_path = home + "/shared/plugins" -%}
-{% set craft_path = home + "/shared/vendor/Craft-Release-" + project['craft']['ref'] -%}
-{% set plugins = project['craft']['plugins'] %}
-
-{% set envs = salt['pillar.get']('web:stages:'+stage+':envs', {}) %}
+{% set envs = stage.envs %}
 
 {% set additional_envs = {
-  'CRAFT_PATH': craft_path,
-  'DB_HOST': project['services']['database']['host'],
+  'CRAFT_PATH': home + "/shared/vendor/Craft-Release-" + craft.ref,
+  'DB_HOST': database.host,
 } %}
 
-{% if envs %}
 {% for key, value in additional_envs.iteritems() %}
     {% do envs.update({key:value}) %}
 {% endfor %}
-{% else %}
-  {% set envs = additional_envs %}
-{% endif %}
 
-{{ php5_fpm_instance(user, group, port,
-                     name=project_name,
+{% set project_path = envs.PROJECT_PATH -%}
+{% set vendor_path = envs.VENDOR_PATH -%}
+
+{% set uploads_path = home + "/shared/assets" -%}
+{% set plugins_path = home + "/shared/plugins" -%}
+{% set craft_path = envs.CRAFT_PATH -%}
+
+{{ env(user, group) }}
+
+{{ deploy(user, group,
+          repo=git.repo,
+          remote_name='origin',
+          bower=True,
+          node=True,
+          identity=home+'/.ssh/deploy.pem')
+}}
+
+{{ php5_fpm_instance(user, group, stage.port,
+                     name=project.name,
                      envs=envs)
 }}
 
-{% set mysql_user = stages[stage]['envs']['DB_USERNAME'] -%}
-{% set mysql_pass = stages[stage]['envs']['DB_PASSWORD'] -%}
-{% set mysql_db = stages[stage]['envs']['DB_DATABASE'] -%}
-
-{{ mysql_user_db(mysql_user, mysql_pass, mysql_db,
-                 host=project['web']['private_ip_address'],
+{{ mysql_user_db(envs.DB_USERNAME, envs.DB_PASSWORD, envs.DB_DATABASE,
+                 host=web.private_ip_address,
                  connection={
-                   'user': project['services']['database']['username'],
-                   'pass': project['services']['database']['password'],
-                   'host': project['services']['database']['host']
+                   'user': database.username,
+                   'pass': database.password,
+                   'host': database.host
                  })
 }}
 
-{% if project['web']['server_name'] %}
-  {% set web_server_name = project['web']['server_name'] if (stage == "production") else stage+'.'+project['web']['server_name'] -%}
+{% if web.server_name %}
+  {% set web_server_name = web.server_name if (stage_name == "production") else stage_name+'.'+web.server_name -%}
 {% else %}
-  {% set web_server_name = '_' if (stage == "production") else '' -%}
+  {% set web_server_name = '_' if (stage_name == "production") else '' -%}
 {% endif %}
 
-{% if stages[stage]['server_name'] %}
-  {% set server_name = stages[stage]['server_name'] + " " + web_server_name %}
+{% if stage.server_name %}
+  {% set server_name = stage.server_name + " " + web_server_name %}
 {% else %}
   {% set server_name = web_server_name %}
 {% endif %}
 
-{% if stage == 'production' %}
+{% if stage_name == 'production' %}
   {% set default_server = True %}
 {% else %}
   {% set default_server = False %}
 {% endif %}
 
-{% if stages[stage]['ssl'] %}
+{% if stage.ssl %}
 {% set listen = '443' %}
-{{ home }}/ssl/{{ stage }}.key:
+{{ home }}/ssl/{{ stage_name }}.key:
   file.managed:
-    - source: salt://web/files/{{ stages[stage]['ssl_certificate_key'] }}
+    - source: salt://web/files/{{ stage.ssl_certificate_key }}
     - user: {{ user }}
     - makedirs: True
-{{ home }}/ssl/{{ stage }}.crt:
+{{ home }}/ssl/{{ stage_name }}.crt:
   file.managed:
-    - source: salt://web/files/{{ stages[stage]['ssl_certificate'] }}
+    - source: salt://web/files/{{ stage.ssl_certificate }}
     - user: {{ user }}
     - makedirs: True
 {% else %}
-  {% set listen = '80' %}
+  {% set listen = '443' %}
 {% endif %}
 
 {{ nginxsite(user, group,
              project_path=project_path,
-             name=project_name,
+             name=project.name,
              server_name=server_name,
              default_server=default_server,
              template="salt://web/files/craft-cms.conf",
              root="public",
              static=project_path+"/public/static",
              listen=listen,
-             ssl=stages[stage]['ssl'],
+             ssl=stage.ssl,
              defaults={
-                'port': port,
-                'ssl_certificate': home+'/ssl/'+stage+'.crt',
-                'ssl_certificate_key': home+'/ssl/'+stage+'.key'
+                'port': stage.port,
+                'ssl_certificate': home+'/ssl/'+stage_name+'.crt',
+                'ssl_certificate_key': home+'/ssl/'+stage_name+'.key'
              })
 }}
 
-{% if stages[stage]['ssl'] %}
+{% if stage.ssl %}
 {{ nginxsite(user, group,
-             name=project_name,
+             name=project.name,
              server_name=server_name,
              template="salt://stackstrap/nginx/files/ssl-redirect.conf")
 }}
@@ -166,23 +145,17 @@
     - makedirs: True
     - user: {{ user }}
 
-{{ user }}_public_key:
-  file.managed:
-    - name: {{ home }}/.ssh/web.pub
-    - source: salt://web/files/web.pub
-    - makedirs: True
-    - user: {{ user }}
-
 {{ user }}_ssh_known_hosts:
   ssh_known_hosts:
     - name: bitbucket.org
     - present
     - user: {{ user }}
 
-{% if project['composer']['github_token'] %}
+{% set composer_token = salt['pillar.get']('composer:github_token', {}) %}
+{% if composer_token %}
 {{ user }}_set_composer_github_token:
   cmd.run:
-    - name: composer config -g github-oauth.github.com  {{ project['composer']['github_token'] }}
+    - name: composer config -g github-oauth.github.com  {{ composer_token }}
     - user: {{ user }}
     - require:
       - cmd: install_composer
@@ -192,10 +165,10 @@
 {{ user }}_download_craft:
   archive.extracted:
     - name: {{ home }}/shared/vendor
-    - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ project['craft']['ref'] }}.tar.gz
-    - source_hash: md5={{ project['craft']['md5'] }}
+    - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ craft.ref }}.tar.gz
+    - source_hash: md5={{ craft.md5 }}
     - archive_format: tar
-    - archive_user: {{ home }}
+    - archive_user: {{ user }}
     - if_missing: {{ craft_path }}
 
 {{ craft_path }}:
@@ -213,8 +186,7 @@
     - group: {{ group }}
     - makedirs: True
 
-{% set plugins = salt['pillar.get']('craft:plugins', {}) %}
-{% for plugin_name, plugin in plugins.items() %}
+{% for plugin_name, plugin in craft.plugins.items() %}
 {{ user }}_download_craft_{{ plugin_name }}_plugin:
   archive.extracted:
     - name: {{ vendor_path }}
@@ -229,8 +201,8 @@
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
-    {% if 'base_path' in plugin %}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_path'] }}
+    {% if 'base_dir' in plugin %}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
     {% else %}
     - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
     {% endif %}
@@ -257,16 +229,13 @@
     - require:
       - user: {{ user }}
     - defaults:
-      stage: {{ stage }}
+      stage: {{ stage_name }}
       project_path: {{ project_path }}
-      mysql_user: {{ mysql_user }}
-      mysql_pass: {{ mysql_pass }}
-      mysql_db: {{ mysql_db }}
       uploads_path: {{ uploads_path }}
       craft_path: {{ craft_path }}
-      {% if stages[stage]['envs'] %}
+      {% if envs %}
       envs:
-        {% for key, value in salt['pillar.get']('web:stages:'+stage+':envs', {}).iteritems() %}
+        {% for key, value in envs.iteritems() %}
         - key: {{ key }}
           value: "{{ value }}"
         {% endfor %}

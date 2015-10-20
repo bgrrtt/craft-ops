@@ -16,4 +16,7 @@ gitfs_remotes:
 
 file_roots:
   base:
-    - /srv/root
+    - /project/ops/salt/roots
+
+grains:
+  role: dev

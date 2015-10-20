@@ -6,4 +6,6 @@ export {{ env['key'] }}="{{ env['value'] }}"
 {% endfor %}
 {% endif %}
 
+alias ops="fab --fabfile=ops/fabfile.py"
+
 source ~/.bashrc

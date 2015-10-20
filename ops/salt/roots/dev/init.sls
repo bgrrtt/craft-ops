@@ -40,7 +40,7 @@
 }}
 
 {{ mysql_user_db(envs.DB_USERNAME, envs.DB_PASSWORD,
-                 dump=project_path+'/salt/root/dev/files/backup.sql') }}
+                 dump=project_path+'/ops/database.sql') }}
 
 {{ nginxsite(user, group,
              template="salt://dev/files/craft-cms.conf",

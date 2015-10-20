@@ -20,7 +20,7 @@ python_requirements:
 admin_private_key:
   file.managed:
     - name: {{ home }}/.ssh/web.pem
-    - source: salt://web/files/web.pem
+    - source: salt://web/files/deploy.pem
     - makedirs: True
     - user: {{ user }}
     - mode: 600

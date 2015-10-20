@@ -10,18 +10,16 @@ def deep_merge!(other_hash)
   end
 end
 
-$state = YAML::load_file('defaults.conf')
-
-$state['role'] = 'dev'
+$state = YAML::load_file('ops/config/defaults.conf')
 
 if File.exist?(ENV['HOME']+'/ops.conf')
   $state.deep_merge!(YAML::load_file(ENV['HOME']+'/ops.conf'))
 end
-if File.exist?('project.conf')
-  $state.deep_merge!(YAML::load_file('project.conf'))
+if File.exist?('ops/config/project.conf')
+  $state.deep_merge!(YAML::load_file('ops/config/project.conf'))
 end
-if File.exist?('private.conf')
-  $state.deep_merge!(YAML::load_file('private.conf'))
+if File.exist?('ops/config/private.conf')
+  $state.deep_merge!(YAML::load_file('ops/config/private.conf'))
 end
 
 
@@ -40,9 +38,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.synced_folder ".", "/project"
 
-  config.vm.synced_folder "salt", "/srv"
-
-  if File.exist?(ENV['HOME']+'/ops.conf')
+  if $state['dev']['enable_ops_conf'] and File.exist?(ENV['HOME']+'/ops.conf')
     config.vm.provision :file,
       source: '~/ops.conf',
       destination: $state['dev']['ops_conf_path']
@@ -67,7 +63,7 @@ $run_salt_states = <<SCRIPT
     then
       echo "[${BLUE}Running Salt states (May take up to 20 minutes the first time)...${NC}]" 
 
-      sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/srv' --log-level=quiet pillar='#{$state.to_json}'
+      sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/project/ops/salt/config/dev' --log-level=quiet pillar='#{$state.to_json}'
 
       echo "[${BLUE}The machine is provisioned and ready for use :)${NC}]"
   fi

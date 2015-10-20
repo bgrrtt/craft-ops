@@ -6,10 +6,10 @@ base:
     - base
 
   'role:dev':
-    - match: pillar
+    - match: grain
     - dev
 
   'role:web':
-    - match: pillar
+    - match: grain
     - web
     - web.admin

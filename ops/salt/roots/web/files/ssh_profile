@@ -4,5 +4,5 @@ export {{ env['key'] }}="{{ env['value'] }}"
 {% endfor %}
 {% endif %}
 
-ssh-add ~/.ssh/web.pem
+ssh-add /ops/keys/web.pem
 source ~/.bashrc
