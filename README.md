@@ -151,10 +151,10 @@ Make sure you are in the `dev` vm
 $ vagrant ssh
 ```
 
-Run the `fab` command to ready your project on Bitbucket and AWS
+Run the `ops` command to ready your project on Bitbucket and AWS
 
 ```
-$ fab setup
+$ ops setup
 ```
 
 # Commands
@@ -171,7 +171,7 @@ the option of deploying to `production`, `staging`, or `preview`.
 To deploy your latest commit pushed to the `bitbucket` remote you would run...
 
 ```
-$ fab production deploy
+$ ops deploy:production
 ```
 
 ### Database
@@ -181,9 +181,7 @@ You can also easily prefrom operations on the database and move "dumps" around.
 Let's say you wanted to dump your `production` database and use it for `dev`...
 
 ```
-$ fab production db:dump
-$ fab production db:down
-$ fab dev db:import
+$ ops db:sync
 ```
 
 ### Asset Uploads
@@ -191,13 +189,13 @@ $ fab dev db:import
 Perhaps you want to sync your `production` uploads to your `dev` vm...
 
 ```
-$ fab production uploads:down
+$ ops uploads:sync
 ```
 
 Or maybe you want to sync your `dev` uploads to `production`...
 
 ```
-$ fab production uploads:up
+$ ops uploads:sync,direction=up
 ```
 
 [aws_free_tier]: https://aws.amazon.com/free/
