@@ -52,10 +52,11 @@ It is really easy, just clone this repo as the name of your project and `vagrant
 ```shell
 $ git clone https://github.com/stackstrap/craft-ops.git project_name
 $ vagrant up
+$ vagrant ssh
+$ ops setup
 ```
 
-You can then hit the dev server at [`http://localhost:8000/admin`](http://localhost:8000/admin)
-to finish the Craft setup process.
+You can then hit the dev server at [`http://localhost:8000`](http://localhost:8000).
 
 ### Asset pipline
 
@@ -74,20 +75,6 @@ it will just work.
 You can add all of your bower components to the `bower.json` file at the root of the
 project.  Just run `bower install` and anything within `bower_components` will be
 available at `http://localhost:8000/static/vendor`.
-
-# Completing the Ops setup
-
-Make sure you are in the `dev` vm...
-
-```
-$ vagrant ssh
-```
-
-Run the `ops` command to ready your project on Bitbucket and AWS
-
-```
-$ ops setup
-```
 
 #### How the configuration works
 
