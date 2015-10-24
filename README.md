@@ -77,6 +77,18 @@ available at `http://localhost:8000/static/vendor`.
 
 # Completing the Ops setup
 
+Make sure you are in the `dev` vm...
+
+```
+$ vagrant ssh
+```
+
+Run the `ops` command to ready your project on Bitbucket and AWS
+
+```
+$ ops setup
+```
+
 #### How the configuration works
 
 The ops setup is configured by sourcing data from a configuration object. The
@@ -108,29 +120,6 @@ under.  With teams Bitbucket allows you to generate an "API key" to use instead 
 password.  You can generate this token under "Manage team" in the top right corner.
 Make sure you have this key handy along with the name of the team you created.
 
-#### Updating the config
-
-First off you will need to set your project's `name` in `project.conf`.  This value
-will be used to name system related things, so leave out special characters.
-
-```
-name: project_name
-```
-
-Once you have your AWS and bitbucket keys you can put those values in the appropriate
-YAML file. Technically you can put them in any one, but creating a `private.conf` or
-`~/ops.conf` is your best best.
-
-```
-aws:
-  access_key: AJALDFJFNENNNKFDABKDBFE
-  secret_key: dsjaf3jk4jl5kj9fjej3l3404353jlgjaglh303
-  
-bitbucket:
-  user: teamname 
-  token: dsafdsfjdks93kjfaj2oj23kjfkjandfk
-```
-
 #### Global config
 
 If you would like to use the same credentials for all projects, you can keep all of the
@@ -142,20 +131,6 @@ to kick off a new Craft Ops project without having to get credentials each time.
 
 > For example you may want to keep your Bitbucket creds in the global config and
 > keep individual AWS creds in private.conf for each project or client.
-
-#### The final step
-
-Make sure you are in the `dev` vm
-
-```
-$ vagrant ssh
-```
-
-Run the `ops` command to ready your project on Bitbucket and AWS
-
-```
-$ ops setup
-```
 
 # Commands
 
