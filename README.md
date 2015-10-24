@@ -51,6 +51,7 @@ It is really easy, just clone this repo as the name of your project and `vagrant
 
 ```shell
 $ git clone https://github.com/stackstrap/craft-ops.git project_name
+$ cd project_name
 $ vagrant up
 $ vagrant ssh
 $ ops setup
