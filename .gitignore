@@ -64,7 +64,6 @@ craft/plugins/*
 craft/storage/*
 
 # Craft Ops
-private.conf
 .vagrant
 package.box
 vendor

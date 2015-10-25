@@ -40,6 +40,17 @@
 
 {{ env(user, group) }}
 
+{{ home }}/.ssh/deploy.pub:
+  file.managed:
+    - source: salt://web/files/deploy.pub
+    - user: {{ user }}
+
+{{ home }}/.ssh/deploy.pem:
+  file.managed:
+    - source: salt://web/files/deploy.pem
+    - user: {{ user }}
+    - mode: 600
+
 {{ deploy(user, group,
           repo=git.repo,
           remote_name='origin',
