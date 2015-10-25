@@ -1,6 +1,5 @@
-import pprintpp
-
 from fabric.api import *
+from pprintpp import pprint as out
 from utils import *
 
 # Importing tasks...
@@ -8,7 +7,7 @@ import setup
 import cleanup
 import provision
 import deploy
-import database
+import database as db
 import uploads
 
 
@@ -16,8 +15,7 @@ import uploads
 @hosts()
 def check():
     state = get_state(bunch=False)
-
-    pprintpp.pprint(state)
+    out(state)
 
 
 @task

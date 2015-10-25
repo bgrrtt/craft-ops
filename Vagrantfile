@@ -61,7 +61,7 @@ $run_salt_states = <<SCRIPT
 
   if [[ `which salt-call` == "/usr/bin/salt-call" ]]
     then
-      echo "[${BLUE}Running Salt states (May take up to 20 minutes the first time)...${NC}]" 
+      echo "[${BLUE}Running Salt states (May take up to 40 minutes the first time)...${NC}]" 
 
       sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/project/ops/salt/config/dev' --log-level=quiet pillar='#{$state.to_json}'
 

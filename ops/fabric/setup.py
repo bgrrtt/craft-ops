@@ -3,13 +3,13 @@ import boto.ec2
 import boto.ec2.elb
 import boto.rds2
 import json
-import pprintpp
 import requests
 import socket
 import time
 import urllib
 
 from fabric.api import *
+from pprintpp import pprint as out
 from requests.auth import HTTPBasicAuth
 from utils import *
 
@@ -314,7 +314,7 @@ def setup(method=False):
                 'is_private': True
             }
             req = requests.post('https://api.bitbucket.org/2.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.project.name, data=data, auth=auth)
-            pprintpp.pprint(req.json())
+            out(req.json())
 
         req = requests.get('https://bitbucket.org/api/1.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.project.name+'/deploy-keys', auth=auth)
         if req.status_code == 200:
@@ -325,7 +325,7 @@ def setup(method=False):
                 'key': ssh_pub_key
             }
             req = requests.post('https://bitbucket.org/api/1.0/repositories/'+state.dev.envs.BITBUCKET_USER+'/'+state.project.name+'/deploy-keys', data=data, auth=auth)
-            pprintpp.pprint(req.json())
+            out(req.json())
 
         with settings(warn_only=True):
             has_git_dir = local("test -d .git", capture=True)

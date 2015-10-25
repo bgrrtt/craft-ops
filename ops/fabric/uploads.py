@@ -1,24 +1,26 @@
-import fabric.api as fab
+from fabric.api import *
+from pprintpp import pprint as out
+from requests.auth import HTTPBasicAuth
+from utils import *
 
 
-@fab.task(default=True)
-@fab.hosts()
-def uploads(method='sync', role='web', stage='production', direction='down'):
+@task(default=True)
+@hosts()
+def uploads(method=False, role='dev', stage=False, direction='down'):
+
+    env.forward_agent = True
 
     state = get_state()
 
-    stage = state.web.stages[stage]
+    if method == "sync":
+        if stage:
+            stage = set_stage(stage)
+        else:
+            stage = set_stage('production')
 
-    server = state.services.public_ips.web.address
+        set_env('web', stage)
 
-    env.user = stage.user
-
-    env.forward_agent = True
-    env.hosts = [server]
-    env.host = server
-    env.host_string = server
-
-    if direction == "down":
-        local("rsync -avz --progress "+env.user+"@"+env.host_string+":/home/"+env.user+"/shared/assets/ "+os.environ['UPLOADS_PATH'])
-    if direction == "up":
-        local("rsync -avz --progress "+os.environ['UPLOADS_PATH']+"/ "+env.user+"@"+env.host_string+":/home/"+env.user+"/shared/assets")
+        if direction == "down":
+            local("rsync -avz --progress "+env.user+"@"+env.host_string+":/home/"+env.user+"/shared/assets/ "+os.environ['UPLOADS_PATH'])
+        if direction == "up":
+            local("rsync -avz --progress "+os.environ['UPLOADS_PATH']+"/ "+env.user+"@"+env.host_string+":/home/"+env.user+"/shared/assets")

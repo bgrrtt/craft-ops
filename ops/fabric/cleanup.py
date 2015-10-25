@@ -3,12 +3,12 @@ import boto.ec2
 import boto.ec2.elb
 import boto.rds2
 import json
-import pprintpp
 import requests
 import time
 import urllib
 
 from fabric.api import *
+from pprintpp import pprint as out
 from requests.auth import HTTPBasicAuth
 from utils import *
 

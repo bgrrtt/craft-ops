@@ -1,55 +1,77 @@
-import fabric.api as fab
+from fabric.api import *
+from pprintpp import pprint as out
+from requests.auth import HTTPBasicAuth
+from utils import *
 
 
-@fab.task(default=True)
-@fab.hosts()
-def database(method='sync', role='web', stage='production', direction='down'):
+@task(default=True)
+@hosts()
+def database(method=False, role='dev', stage=False, direction='down'):
     state = get_state()
 
-    if (not role) or (role == 'dev'):
+    env.forward_agent = True
 
-        env.hosts = ["localhost"]
-        env.host = ["localhost"]
-        env.host_string = ["localhost"]
+    if method == "sync":
+        if stage:
+            stage = set_stage(stage)
+        else:
+            stage = set_stage('production')
 
-        env.user = state.dev.user
+        set_env('web', stage)
 
-        stage = state.web.stages[stage]
-        pprintpp.pprint(stage)
-
-        if method == "import":
-            local("mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < ops/database.sql")
-
-        if method == "dump":
-            local("mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > ops/database.sql")
-
-        if method == "sync":
+        if direction == 'down':
             run("cd $HOME/tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
-            get("/home/"+stage.user+"/tmp/dump.sql","/tmp/dump.sql")
-            local("cd /tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < dump.sql")
-
-    elif role == 'web':
-        state = get_state()
-
-        server = state.services.public_ips.web.address
-
-        env.user = state.web.admin.user
-        env.hosts = [server]
-        env.host = server
-        env.host_string = server
-
-        stage = state.web.stages[stage]
-
-        env.user = stage.user
-
-        if method == "down":
             get("/home/"+stage.user+"/tmp/dump.sql","ops/database.sql")
-
-        if method == "up":
+            local("mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < ops/database.sql")
+        
+        if direction == 'up':
+            local("mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > ops/database.sql")
             put("ops/database.sql","/home/"+stage.user+"/tmp/import.sql")
-
-        if method == "import":
             run("cd $HOME/tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < import.sql")
 
-        if method == "dump":
+    if method == "import":
+        if role == 'dev' and not stage:
+            set_env('dev')
+
+            local("mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < ops/database.sql")
+
+        if stage:
+            stage = set_stage(stage)
+
+            set_env('web', stage)
+
+            run("cd $HOME/tmp && mysql -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE < import.sql")
+
+    if method == "dump":
+        if role == 'dev' and not stage:
+            set_env('dev')
+
+            local("mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > ops/database.sql")
+
+        if stage:
+            stage = set_stage(stage)
+
+            set_env('web', stage)
+
             run("cd $HOME/tmp && mysqldump -u $DB_USERNAME -h $DB_HOST -p$DB_PASSWORD $DB_DATABASE > dump.sql")
+
+    if method == "down":
+        if stage:
+            stage = set_stage(stage)
+        else:
+            stage = set_stage('production')
+
+        set_env('web', stage)
+
+        get("/home/"+stage.user+"/tmp/dump.sql","ops/database.sql")
+
+    if method == "up":
+        if stage:
+            stage = set_stage(stage)
+        else:
+            stage = set_stage('production')
+
+        set_env('web', stage)
+
+        put("ops/database.sql","/home/"+stage.user+"/tmp/import.sql")
+

@@ -1,4 +1,6 @@
 from bunch import bunchify
+from pprintpp import pprint as out
+from fabric.api import env
 
 import copy
 import os
@@ -6,6 +8,32 @@ import random
 import ruamel.yaml
 import string
 import yaml
+
+
+def set_stage(stage_name):
+    state = get_state()
+
+    stage = state.web.stages[stage_name]
+
+    out('Using stage: '+stage_name)
+
+    return stage
+
+def set_env(role, stage=False):
+    state = get_state()
+
+    server = state.services.public_ips.web.address
+
+    if role == 'dev':
+        env.user = state.dev.user
+        env.hosts = ["localhost"]
+        env.host = ["localhost"]
+        env.host_string = "localhost"
+    else:
+        env.user = stage.user
+        env.hosts = [server]
+        env.host = [server]
+        env.host_string = str(server)
 
 def dict_merge(a, b):
     '''recursively merges dict's. not just simple a['key'] = b['key'], if
