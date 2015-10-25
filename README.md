@@ -84,6 +84,8 @@ object is created by merging a series of YAML files on top of each other.
 
 `defaults.conf` - This file is the base layer and just for reference.
 
+##### Generated after `ops setup`...
+
 `project.conf` - This is the main file where you should put custom properties.
 
 `private.conf` - This file is where you would store private project
