@@ -1,9 +1,15 @@
-import fabric.api as fab
+import time
+import datetime
+
+from fabric.api import *
+from pprintpp import pprint as out
+from requests.auth import HTTPBasicAuth
+from utils import *
 
 
-@fab.task(default=True)
-@fab.hosts()
-def deploy(stage='staging', branch="master"):
+@task(default=True)
+@hosts()
+def deploy(stage='production', branch="master"):
 
     state = get_state()
 
@@ -53,8 +59,8 @@ def deploy(stage='staging', branch="master"):
     run("cd $HOME/current && bower install")
 
 
-@fab.task
-@fab.hosts()
+@task()
+@hosts()
 def releases(method="clean"):
     state = get_state()
 
