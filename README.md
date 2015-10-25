@@ -87,8 +87,8 @@ object is created by merging a series of YAML files on top of each other.
 `project.conf` - This is the main file where you should put custom properties.
 
 `private.conf` - This file is where you would store private project
-data like access keys. You should `.gitignore` this file or encrypt it if you
-want to share it in the repo.
+data like access keys. 
+>**You should add `private.conf` to `.gitignore` or encrypt it before commiting.**
 
 ##### Getting AWS credentials
 
