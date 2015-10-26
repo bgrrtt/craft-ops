@@ -9,7 +9,10 @@ from utils import *
 
 @task(default=True)
 @hosts()
-def deploy(stage='production', branch="master"):
+def deploy(stage='staging', branch='develop'):
+
+    if stage == 'production':
+        branch = 'master'
 
     state = get_state()
 

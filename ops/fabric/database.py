@@ -69,7 +69,7 @@ def database(method=False, role='dev', stage=False, direction='down'):
         if stage:
             stage = set_stage(stage)
         else:
-            stage = set_stage('production')
+            stage = set_stage('staging')
 
         set_env('web', stage)
 
