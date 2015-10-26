@@ -104,7 +104,7 @@
     - user: {{ user }}
     - makedirs: True
 {% else %}
-  {% set listen = '443' %}
+  {% set listen = '80' %}
 {% endif %}
 
 {{ nginxsite(user, group,
