@@ -39,7 +39,7 @@ def setup(method=False):
             project['craft']['username'] = raw_input("Enter a username for the craft user:")
 
         if not state.craft.password:
-            password = raw_input("Enter a admin admin password (leave empty to have one generated):")
+            password = raw_input("Enter a password for Craft (leave empty to have one generated):")
             if not password:
                 password = random_generator()
 
