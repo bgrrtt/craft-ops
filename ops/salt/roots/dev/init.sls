@@ -255,6 +255,7 @@ install_bower_components:
     - name: bower install
     - cwd: {{ project_path }}
     - user: {{ user }}
+    - onlyif: test -f {{ project_path }}/bower.json
     - require:
       - file: {{ user }}_bowerrc
 
