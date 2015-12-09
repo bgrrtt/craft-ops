@@ -1,14 +1,22 @@
+import os
+
 from fabric.api import *
 from pprintpp import pprint as out
 from utils import *
 
-# Importing tasks...
+# Importing fabric tasks...
 import setup
 import cleanup
 import provision
 import deploy
 import database as db
 import uploads
+ 
+
+state = get_state()
+
+os.environ["AWS_ACCESS_KEY_ID"] = state.dev.envs.AWS_ACCESS_KEY
+os.environ["AWS_SECRET_ACCESS_KEY"] = state.dev.envs.AWS_SECRET_KEY
 
 
 @task
