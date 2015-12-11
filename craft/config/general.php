@@ -12,6 +12,7 @@ $project_path = getenv('PROJECT_PATH');
 return array(
     '*' => array(
         'devMode' => false,
+        'execCommand' => 'sudo /usr/bin/find /var/cache/nginx -type f -delete',
         'omitScriptNameInUrls' => true,
         'defaultTemplateExtensions'=>array('tmpl','html','twig'),
         'environmentVariables' => array(
@@ -20,6 +21,7 @@ return array(
     ),
     'local' => array(
         'devMode' => true,
+        'execCommand' => '',
 		'siteUrl' => 'http://localhost:8000/',
         'environmentVariables' => array(
             'baseUrl'  => 'http://localhost:8000/',

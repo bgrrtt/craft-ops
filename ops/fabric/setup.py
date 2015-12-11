@@ -340,9 +340,9 @@ def setup(method=False):
 
         git_remotes = local("git remote", capture=True)
         if "upstream" not in git_remotes:
-            local("git remote add upstream git@github.com:stackstrap/craft-ops.git")
+            local("git remote add upstream git@github.com:everysquare/craft-ops.git")
         else:
-            local("git remote set-url upstream git@github.com:stackstrap/craft-ops.git")
+            local("git remote set-url upstream git@github.com:everysquare/craft-ops.git")
 
         project['git']['repo'] = repo_url
 

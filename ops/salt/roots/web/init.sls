@@ -13,6 +13,20 @@
 {% set project = salt['pillar.get']('project', {}) %}
 {% set web = salt['pillar.get']('web', {}) %}
 
+/var/cache/nginx:
+  file.directory:
+    - makedirs: True
+    - user: www-data
+    - group: www-data
+    - watch_in:
+      - service: nginx
+
+/etc/nginx/nginx.conf:
+  file.managed:
+    - source: salt://web/files/nginx.conf
+    - watch_in:
+      - service: nginx
+
 {% for stage_name, stage in web.stages.items() %}
 
 {% set user = stage.user -%}
@@ -255,6 +269,11 @@
       {% endif %}
 
 {% endfor %}
+
+/etc/sudoers:
+  file.managed:
+    - source: salt://web/files/sudoers
+    - mode: 440
 
 #https://bugs.launchpad.net/ubuntu/+source/php5/+bug/1242376
 /etc/init/php5-fpm.conf:

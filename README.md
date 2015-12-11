@@ -49,7 +49,7 @@ a more enjoyable experience.
 It is really easy, just clone this repo as the name of your project and `vagrant up`.
 
 ```shell
-$ git clone https://github.com/stackstrap/craft-ops.git project_name
+$ git clone https://github.com/everysquare/craft-ops.git project_name
 $ cd project_name
 $ vagrant up
 $ vagrant ssh
@@ -170,7 +170,7 @@ $ ops uploads:sync,direction=up
 [craft_link]: https://buildwithcraft.com/
 [craft_license]: https://buildwithcraft.com/license
 [git_windows]: https://msysgit.github.io/
-[project_conf_link]: https://github.com/stackstrap/craft-ops/blob/master/project.conf#L3
+[project_conf_link]: https://github.com/everysquare/craft-ops/blob/master/project.conf#L3
 [unix_like_link]:http://en.wikipedia.org/wiki/Unix-like
 [vagrant_link]: http://vagrantup.com
 [virtualbox_link]: http://virtualbox.org
