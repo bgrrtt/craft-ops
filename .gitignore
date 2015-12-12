@@ -68,7 +68,5 @@ craft/storage/*
 package.box
 vendor
 bower_components
-*.pem
-*.pub
 public/assets/*
 public/plugins.php

@@ -22,7 +22,7 @@ return array(
     'local' => array(
         'devMode' => true,
         'execCommand' => '',
-		'siteUrl' => 'http://localhost:8000/',
+        'siteUrl' => 'http://localhost:8000/',
         'environmentVariables' => array(
             'baseUrl'  => 'http://localhost:8000/',
         ),

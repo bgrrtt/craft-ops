@@ -61,6 +61,9 @@ def deploy(stage='staging', branch='develop'):
     run("ln -s $HOME/shared/bower_components $HOME/current/public/static/vendor")
     run("cd $HOME/current && bower install")
 
+    #Clear nginx cache after each deploy
+    run("sudo /usr/bin/find /var/cache/nginx -type f -delete")
+
 
 @task()
 @hosts()

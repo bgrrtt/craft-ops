@@ -304,6 +304,19 @@ install_bower_components:
     })
 }}
 
+/usr/local/transcrypt:
+  archive.extracted:
+    - source: https://github.com/elasticdog/transcrypt/archive/v0.9.7.tar.gz
+    - source_hash: md5=b37aa6539b344ea51c9a52080ad6b59c
+    - archive_format: tar
+    - tar_options: --strip-components=1
+    - user: {{ user }}
+    - group: {{ group }}
+
+/usr/local/bin/transcrypt:
+  file.symlink:
+    - target: /usr/local/transcrypt/transcrypt
+
 #https://bugs.launchpad.net/ubuntu/+source/php5/+bug/1242376
 /etc/init/php5-fpm.conf:
   file.managed:

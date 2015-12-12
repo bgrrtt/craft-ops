@@ -11,6 +11,7 @@ import provision
 import deploy
 import database as db
 import uploads
+import craft
  
 
 state = get_state()
