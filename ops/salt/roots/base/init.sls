@@ -4,12 +4,12 @@
 {% set project = pillar -%}
 
 include:
-  - stackstrap.env
-  - stackstrap.supervisor
-  - stackstrap.nginx
-  - stackstrap.php5.fpm
-  - stackstrap.mysql.server
-  - stackstrap.mysql.client
+  - formula.env
+  - formula.supervisor
+  - formula.nginx
+  - formula.php5.fpm
+  - formula.mysql.server
+  - formula.mysql.client
 
 nodejs.ppa:
   pkgrepo.managed:

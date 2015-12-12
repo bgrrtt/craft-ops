@@ -1,11 +1,11 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
-{% from "stackstrap/supervisor/macros.sls" import supervise -%}
-{% from "stackstrap/nginx/macros.sls" import nginxsite %}
-{% from "stackstrap/php5/macros.sls" import php5_fpm_instance %}
-{% from "stackstrap/mysql/macros.sls" import mysql_user_db %}
-{% from "stackstrap/env/macros.sls" import env %}
+{% from "formula/supervisor/macros.sls" import supervise -%}
+{% from "formula/nginx/macros.sls" import nginxsite %}
+{% from "formula/php5/macros.sls" import php5_fpm_instance %}
+{% from "formula/mysql/macros.sls" import mysql_user_db %}
+{% from "formula/env/macros.sls" import env %}
 
 {% set project = salt['pillar.get']('project', {}) %}
 {% set services = salt['pillar.get']('services', {}) %}

@@ -1,7 +1,7 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
-{% from "stackstrap/env/macros.sls" import env -%}
+{% from "formula/env/macros.sls" import env -%}
 
 {% set project = salt['pillar.get']('project', {}) %}
 {% set web = salt['pillar.get']('web', {}) %}

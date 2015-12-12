@@ -1,11 +1,11 @@
 # -*- mode: yaml -*-
 # vim: set ft=yaml ts=2 sw=2 et sts=2 :
 
-{% from "stackstrap/env/macros.sls" import env -%}
-{% from "stackstrap/deploy/macros.sls" import deploy %}
-{% from "stackstrap/nginx/macros.sls" import nginxsite %}
-{% from "stackstrap/php5/macros.sls" import php5_fpm_instance %}
-{% from "stackstrap/mysql/macros.sls" import mysql_user_db %}
+{% from "formula/env/macros.sls" import env -%}
+{% from "formula/deploy/macros.sls" import deploy %}
+{% from "formula/nginx/macros.sls" import nginxsite %}
+{% from "formula/php5/macros.sls" import php5_fpm_instance %}
+{% from "formula/mysql/macros.sls" import mysql_user_db %}
 
 {% set craft = salt['pillar.get']('craft', {}) %}
 {% set database = salt['pillar.get']('database', {}) %}
@@ -142,7 +142,7 @@
 {{ nginxsite(user, group,
              name=project.name,
              server_name=server_name,
-             template="salt://stackstrap/nginx/files/ssl-redirect.conf")
+             template="salt://formula/nginx/files/ssl-redirect.conf")
 }}
 {% endif %}
 
