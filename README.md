@@ -1,5 +1,7 @@
 # Craft Ops
 
+[![Join the chat at https://gitter.im/everysquare/craft-ops](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/everysquare/craft-ops?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 `Craft Ops` is a template which uses automation tools to build you a virtual
 DevOps environment which is tailored for [Craft CMS][craft_link]. Craft itself
 is already incredibly easy to setup with tools like MAMP, and this project
