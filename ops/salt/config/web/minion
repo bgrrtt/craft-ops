@@ -6,16 +6,13 @@ state_verbose: False
 file_client: local
 
 fileserver_backend:
-  - git
   - roots
 
 gitfs_provider: gitpython
 
-gitfs_remotes:
-  - https://github.com/everysquare/formula.git
-
 file_roots:
   base:
+    - /srv
     - /salt/roots
 
 grains:

@@ -35,10 +35,13 @@ def provision(role=False):
         user = state.web.admin.user
         group = state.web.admin.group
 
-        # Get the files where they need to be before provisioning
-        sudo("mkdir -p /salt")
-        sudo("chown -R "+user+":"+group+" /salt")
-        rsync_project("/salt/", "./ops/salt/")
+        run("curl -L https://github.com/everysquare/formula/archive/4541430110542004b9fc311f5620155d0932e88b.tar.gz -o /tmp/formula.tar.gz")
+
+        md5 = run("md5sum /tmp/formula.tar.gz | awk '{ print $1 }'").strip()
+        if md5 != "0beb7ce48459da2ed6888542ec109727":
+            sys.exit()
+
+        run("tar xvf /tmp/formula.tar.gz -C /srv --strip-components=1")
 
         with settings(warn_only=True):
             check_for_salt = run("which salt-call")
@@ -52,6 +55,11 @@ def provision(role=False):
 
                 run("cd /tmp && tar -xvf v2015.08.06.tar.gz")
                 run("cd /tmp && sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip")
+
+        # Get the files where they need to be before provisioning
+        sudo("mkdir -p /salt")
+        sudo("chown -R "+user+":"+group+" /salt")
+        rsync_project("/salt/", "./ops/salt/")
 
         # Provision the machine
         state['role'] = 'web'
