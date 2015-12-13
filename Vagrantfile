@@ -44,6 +44,15 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       destination: $state['dev']['ops_conf_path']
   end
 
+  if $state['dev']['host_key']
+    config.vm.provision :file,
+      source: $state['dev']['host_key'],
+      destination: '/home/vagrant/.ssh/id_rsa' 
+    config.vm.provision :shell,
+      inline: 'chmod 600 /home/vagrant/.ssh/id_rsa',
+      :keep_color => true
+  end
+
   config.vm.provision :shell,
     inline: $install_salt,
     :keep_color => true
