@@ -90,6 +90,14 @@ $install_salt = <<SCRIPT
 
       sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip >/dev/null
 
+      wget https://github.com/everysquare/formula/archive/4541430110542004b9fc311f5620155d0932e88b.tar.gz -q >/dev/null
+
+      if [ `md5sum 4541430110542004b9fc311f5620155d0932e88b.tar.gz | awk '{ print $1 }'` != "0beb7ce48459da2ed6888542ec109727" ]
+        then exit 1
+      fi
+
+      tar -xvf 4541430110542004b9fc311f5620155d0932e88b.tar.gz -C /srv --strip-components=1 >/dev/null
+
   else
     echo "[${ORANGE}Salt is installed.${NC}]"
   fi
