@@ -1,7 +1,7 @@
 #pattern  filter=crypt diff=crypt
 ops/config/private.conf  filter=crypt diff=crypt
-ops/keys/admin.pem  filter=crypt diff=crypt
-ops/keys/admin.pub  filter=crypt diff=crypt
+ops/keys/web.pem  filter=crypt diff=crypt
+ops/keys/web.pub  filter=crypt diff=crypt
 ops/keys/dev.pem  filter=crypt diff=crypt
 ops/keys/dev.pub  filter=crypt diff=crypt
 ops/salt/roots/web/files/deploy.pem  filter=crypt diff=crypt

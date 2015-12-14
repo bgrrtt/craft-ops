@@ -60,10 +60,6 @@
     - makedirs: True
     - user: {{ user }}
 
-python_requirements:
-  pip.installed:
-    - requirements: salt://dev/files/requirements.txt
-
 configure_legit_remote:
   cmd.run:
     - name: git config legit.remote origin

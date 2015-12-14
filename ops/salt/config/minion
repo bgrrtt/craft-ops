@@ -8,12 +8,6 @@ file_client: local
 fileserver_backend:
   - roots
 
-gitfs_provider: gitpython
-
 file_roots:
   base:
-    - /srv
-    - /project/ops/salt/roots
-
-grains:
-  role: dev
+    - /salt/roots

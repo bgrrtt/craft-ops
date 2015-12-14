@@ -9,12 +9,12 @@ from utils import *
 
 @task(default=True)
 @hosts()
-def craft(method=False, role='dev', stage=False):
+def update(method=False, role='dev', stage=False):
     state = get_state()
 
     env.forward_agent = True
 
-    if method == "update":
+    if method == "craft":
         project, private = yaml_edit(['craft'])
 
         r = requests.get('https://api.github.com/repos/pixelandtonic/Craft-Release/commits')
@@ -25,6 +25,22 @@ def craft(method=False, role='dev', stage=False):
 
         project['craft']['ref'] = packageCommit
         project['craft']['md5'] = packageHash
+
+        out(project)
+
+        yaml_save( { 'project': project, 'private': private } )
+
+    if method == "formula":
+        project, private = yaml_edit(['formula'])
+
+        r = requests.get('https://api.github.com/repos/everysquare/formula/commits')
+        packageCommit = r.json()[0]['sha']
+        packageUrl = "https://github.com/everysquare/formula/archive/"+packageCommit+".tar.gz"
+        localPackage = download_file(packageUrl)
+        packageHash = get_hash(localPackage)
+
+        project['formula']['ref'] = packageCommit
+        project['formula']['md5'] = packageHash
 
         out(project)
 

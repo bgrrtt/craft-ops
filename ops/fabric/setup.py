@@ -9,6 +9,8 @@ import time
 import urllib
 
 from fabric.api import *
+from os.path import isfile
+from os.path import expanduser
 from pprintpp import pprint as out
 from requests.auth import HTTPBasicAuth
 from utils import *
@@ -142,6 +144,9 @@ def setup(method=False):
             'services.public_ips'
         ])
 
+        os.environ["AWS_ACCESS_KEY_ID"] = state.dev.envs.AWS_ACCESS_KEY
+        os.environ["AWS_SECRET_ACCESS_KEY"] = state.dev.envs.AWS_SECRET_KEY
+
         project['setup'].append('services')
 
         services = state.services
@@ -184,15 +189,17 @@ def setup(method=False):
 
         project['services']['vpc']['subnets'] = subnets
 
-        for key_name, key in state.services.key_pairs.items():
-            if not os.path.isfile(key.private): 
-                # Make new key pair
-                local("openssl genrsa -out "+key.private+" 2048")
-                local("chmod 600 "+key.private)
-                local("ssh-keygen -f "+key.private+" -y > "+key.public)
+        private_key = expanduser(state.web.private_key)
+        public_key = expanduser(state.web.public_key)
 
-                with open(key.public) as public_key:
-                    conn.import_key_pair(key_name+'-'+state.project.name, public_key.read())
+        # Make web key pair if it does not exist
+        if not isfile(private_key):
+            local("openssl genrsa -out "+private_key+" 2048")
+            local("chmod 600 "+private_key)
+            local("ssh-keygen -f "+private_key+" -y > "+public_key)
+
+        with open(public_key) as public_key_file:
+            conn.import_key_pair('web-'+state.project.name, public_key_file.read())
 
         security_groups = {}
         for name, item in state.services.security_groups.items():
@@ -384,7 +391,7 @@ def setup(method=False):
             instance = conn.run_instances(
                 state.web.ami_id,
                 instance_type=state.web.instance_type,
-                key_name=state.web.key_pair+'-'+state.project.name,
+                key_name='web-'+state.project.name,
                 placement=placement,
                 subnet_id=subnet_id,
                 security_group_ids=security_group_ids
@@ -406,6 +413,7 @@ def setup(method=False):
                 allocation_id=state.services.public_ips.web.allocation_id
             ).association_id
 
+            project['web']['public_ip'] = state.services.public_ips.web.address
             project['web']['address_association_id'] = address_association_id
 
             #Now we need to wait for "Initializing" to finish, let's keep trying to reach the server
@@ -444,10 +452,10 @@ def setup(method=False):
                 [instance.id]
             )
 
-        yaml_save( { 'project': project, 'private': private } )
-
         # Auto-add the host to known_hosts
         local("ssh-keyscan -t rsa "+state.services.public_ips.web.address+" >> ~/.ssh/known_hosts")
+
+        yaml_save( { 'project': project, 'private': private } )
 
         # Provision the newly created instance
         local("fab --fabfile=ops/fabric/fabfile.py provision:web")

@@ -1,9 +1,0 @@
-awscli
-boto
-bunch
-fabric
-https://github.com/kennethreitz/legit/zipball/master
-pprintpp
-pyyaml
-requests
-ruamel.yaml

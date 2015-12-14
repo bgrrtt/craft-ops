@@ -27,6 +27,16 @@
     - watch_in:
       - service: nginx
 
+# Setup the web sudo user environment
+
+{% set user = web.user -%}
+{% set group = web.group -%}
+{% set home = "/home/"+user -%}
+
+{{ env(user, group) }}
+
+# Set up each "stage" user and environment
+
 {% for stage_name, stage in web.stages.items() %}
 
 {% set user = stage.user -%}

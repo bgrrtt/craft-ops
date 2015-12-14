@@ -22,6 +22,7 @@ if File.exist?('ops/config/private.conf')
   $state.deep_merge!(YAML::load_file('ops/config/private.conf'))
 end
 
+$state['role'] = 'dev'
 
 VAGRANTFILE_API_VERSION = "2"
 
@@ -38,19 +39,24 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.synced_folder ".", "/project"
 
+  config.vm.synced_folder "ops/salt", "/salt", type: "rsync"
+
   if $state['dev']['enable_ops_conf'] and File.exist?(ENV['HOME']+'/ops.conf')
     config.vm.provision :file,
       source: '~/ops.conf',
       destination: $state['dev']['ops_conf_path']
   end
 
-  if $state['dev']['host_key']
+  if $state['dev']['host_private_key']
     config.vm.provision :file,
-      source: $state['dev']['host_key'],
+      source: $state['dev']['host_private_key'],
       destination: '/home/vagrant/.ssh/id_rsa' 
     config.vm.provision :shell,
       inline: 'chmod 600 /home/vagrant/.ssh/id_rsa',
       :keep_color => true
+    config.vm.provision :file,
+      source: $state['dev']['host_public_key'],
+      destination: '/home/vagrant/.ssh/id_rsa.pub' 
   end
 
   config.vm.provision :shell,
@@ -72,7 +78,7 @@ $run_salt_states = <<SCRIPT
     then
       echo "[${BLUE}Running Salt states (May take up to 40 minutes the first time)...${NC}]" 
 
-      sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/project/ops/salt/config/dev' --log-level=quiet pillar='#{$state.to_json}'
+      sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/salt/config' --log-level=quiet pillar='#{$state.to_json}'
 
       echo "[${BLUE}The machine is provisioned and ready for use :)${NC}]"
   fi
@@ -99,13 +105,19 @@ $install_salt = <<SCRIPT
 
       sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip >/dev/null
 
-      wget https://github.com/everysquare/formula/archive/4541430110542004b9fc311f5620155d0932e88b.tar.gz -q >/dev/null
+      curl -L https://github.com/everysquare/formula/archive/#{$state['formula']['ref']}.tar.gz -s -o /tmp/formula.tar.gz >/dev/null
 
-      if [ `md5sum 4541430110542004b9fc311f5620155d0932e88b.tar.gz | awk '{ print $1 }'` != "0beb7ce48459da2ed6888542ec109727" ]
+      if [ `md5sum /tmp/formula.tar.gz | awk '{ print $1 }'` != "#{$state['formula']['md5']}" ]
         then exit 1
       fi
 
-      tar -xvf 4541430110542004b9fc311f5620155d0932e88b.tar.gz -C /srv --strip-components=1 >/dev/null
+      tar -xvf /tmp/formula.tar.gz -C /salt/roots --strip-components=1 >/dev/null
+
+      rm /tmp/formula.tar.gz
+
+      chown -R vagrant /salt
+
+      chgrp -R vagrant /salt
 
   else
     echo "[${ORANGE}Salt is installed.${NC}]"

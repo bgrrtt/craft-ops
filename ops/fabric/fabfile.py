@@ -5,19 +5,13 @@ from pprintpp import pprint as out
 from utils import *
 
 # Importing fabric tasks...
-import setup
 import cleanup
-import provision
-import deploy
 import database as db
+import deploy
+import provision
+import setup
+import update 
 import uploads
-import craft
- 
-
-state = get_state()
-
-os.environ["AWS_ACCESS_KEY_ID"] = state.dev.envs.AWS_ACCESS_KEY
-os.environ["AWS_SECRET_ACCESS_KEY"] = state.dev.envs.AWS_SECRET_KEY
 
 
 @task
@@ -41,4 +35,4 @@ def tree():
 def ssh():
     state = get_state()
 
-    local("ssh -i ops/keys/admin.pem "+state.web.admin.user+"@"+state.services.public_ips.web.address)
+    local("ssh -i "+state.web.private_key+" "+state.web.user+"@"+state.web.public_ip)

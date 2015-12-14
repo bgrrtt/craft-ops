@@ -101,10 +101,7 @@ def cleanup(method=False):
 
         conn = boto.vpc.connect_to_region(services.region)
 
-        for name, item in services.key_pairs.items():
-            conn.delete_key_pair(name+'-'+state.project.name)
-            local('rm -f '+item.private)
-            local('rm -f '+item.public)
+        conn.delete_key_pair('web-'+state.project.name)
 
         if project['services']['public_ips']:
             for public_ip_name, public_ip in services.public_ips.items():

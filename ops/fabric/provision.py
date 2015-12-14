@@ -11,6 +11,11 @@ from utils import *
 def provision(role=False):
     state = get_state()
 
+    if role:
+        state['role'] = role 
+    else:
+        state['role'] = 'dev'
+
     if (not role) or (role == 'dev'):
 
         env.hosts = ["localhost"]
@@ -18,30 +23,32 @@ def provision(role=False):
         env.host_string = ["localhost"]
         env.stages = [state.dev]
 
-        local("sudo salt-call state.highstate --config-dir='/project/ops/salt/config/dev' pillar='"+json.dumps(state)+"' -l debug")
+        local("curl -L https://github.com/everysquare/formula/archive/"+state.formula.ref+".tar.gz -s -o /tmp/formula.tar.gz")
+
+        md5 = local("md5sum /tmp/formula.tar.gz | awk '{ print $1 }'", capture=True).strip()
+        if md5 != state.formula.md5:
+            sys.exit()
+
+        local("tar xvf /tmp/formula.tar.gz -C /salt/roots --strip-components=1 > /dev/null")
+
+        local("rsync -a ops/salt/ /salt > /dev/null")
+
+        local("sudo salt-call state.highstate --config-dir='ops/salt/config' pillar='"+json.dumps(state)+"' -l debug")
 
     elif role == 'web':
         state = get_state()
 
         server = state.services.public_ips.web.address
 
-        env.user = state.web.admin.user
+        env.user = state.web.user
         env.hosts = [server]
         env.host = server
         env.host_string = server
 
-        env.key_filename = 'ops/keys/admin.pem'
+        env.key_filename = state.web.private_key
 
-        user = state.web.admin.user
-        group = state.web.admin.group
-
-        run("curl -L https://github.com/everysquare/formula/archive/4541430110542004b9fc311f5620155d0932e88b.tar.gz -o /tmp/formula.tar.gz")
-
-        md5 = run("md5sum /tmp/formula.tar.gz | awk '{ print $1 }'").strip()
-        if md5 != "0beb7ce48459da2ed6888542ec109727":
-            sys.exit()
-
-        run("tar xvf /tmp/formula.tar.gz -C /srv --strip-components=1")
+        user = state.web.user
+        group = state.web.group
 
         with settings(warn_only=True):
             check_for_salt = run("which salt-call")
@@ -59,9 +66,17 @@ def provision(role=False):
         # Get the files where they need to be before provisioning
         sudo("mkdir -p /salt")
         sudo("chown -R "+user+":"+group+" /salt")
-        rsync_project("/salt/", "./ops/salt/")
+        rsync_project("/salt", "./ops/salt/")
+
+        run("curl -L https://github.com/everysquare/formula/archive/"+state.formula.ref+".tar.gz -o /tmp/formula.tar.gz")
+
+        md5 = run("md5sum /tmp/formula.tar.gz | awk '{ print $1 }'").strip()
+        if md5 != state.formula.md5:
+            sys.exit()
+
+        run("tar xvf /tmp/formula.tar.gz -C /salt/roots --strip-components=1")
 
         # Provision the machine
         state['role'] = 'web'
-        sudo("salt-call state.highstate --config-dir='/salt/config/web' pillar='"+json.dumps(state)+"' -l debug")
+        sudo("salt-call state.highstate --config-dir='/salt/config' pillar='"+json.dumps(state)+"' -l debug")
 
