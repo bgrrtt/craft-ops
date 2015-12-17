@@ -4,7 +4,7 @@ module.exports = {
     "files": ["assets/**/*.js", "assets/**/*.css", "assets/**/*.scss"],
     "watchOptions": {
         usePolling: true,
-        interval: 100,
+        interval: 1000,
         cwd: "/project"
     }
 };
