@@ -19,7 +19,7 @@
 {% set envs = dev.envs %}
 
 {% set additional_envs = {
-  'CRAFT_PATH': envs.VENDOR_PATH + "/Craft-Release-" + craft.ref
+  'CRAFT_PATH': envs.VENDOR_PATH + "/craft"
 } %}
 
 {% for key, value in additional_envs.iteritems() %}
@@ -102,24 +102,14 @@ install_legit_aliases:
     - user: {{ user }}
     - group: {{ group }}
 
-download_craft:
+{{ craft_path }}:
   archive.extracted:
-    - name: {{ vendor_path }}
     - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ craft.ref }}.tar.gz
     - source_hash: md5={{ craft.md5 }}
     - archive_format: tar
+    - tar_options: --strip-components=1
     - user: {{ user }}
     - group: {{ group }}
-    - if_missing: {{ craft_path }}
-
-{{ craft_path }}:
-  file.directory:
-    - user: {{ user }}
-    - group: {{ group }}
-    - makedirs: True
-    - recurse:
-      - user
-      - group
 
 /usr/local/bin/yiic:
   file.symlink:
@@ -151,33 +141,23 @@ download_craft:
 
 
 {% for name, plugin in craft.plugins.items() %}
-download_craft_{{ name }}_plugin:
+{{ vendor_path }}/{{ plugin['repo_name'] }}:
   archive.extracted:
-    - name: {{ vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz
     - source_hash: md5={{ plugin['md5'] }}
     - archive_format: tar
+    - tar_options: --strip-components=1
     - user: {{ user }}
     - group: {{ group }}
-    - if_missing: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
-
-{{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}:
-  file.directory:
-    - user: {{ user }}
-    - group: {{ group }}
-    - makedirs: True
-    - recurse:
-      - user
-      - group
 
 {{ home }}/plugins/{{ name }}:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
     {% if 'base_dir' in plugin %}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}/{{ plugin['base_dir'] }}
     {% else %}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}
     {% endif %}
 {% endfor %}
 

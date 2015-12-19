@@ -1,4 +1,6 @@
 import json
+import re
+import sys
 
 from fabric.api import *
 from pprintpp import pprint as out
@@ -38,7 +40,7 @@ def provision(role=False):
     elif role == 'web':
         state = get_state()
 
-        server = state.services.public_ips.web.address
+        server = state.web.public_ip
 
         env.user = state.web.user
         env.hosts = [server]
@@ -70,7 +72,7 @@ def provision(role=False):
 
         run("curl -L https://github.com/everysquare/formula/archive/"+state.formula.ref+".tar.gz -o /tmp/formula.tar.gz")
 
-        md5 = run("md5sum /tmp/formula.tar.gz | awk '{ print $1 }'").strip()
+        md5 = re.findall(r"([a-fA-F\d]{32})", run("md5sum /tmp/formula.tar.gz"))[0]
         if md5 != state.formula.md5:
             sys.exit()
 

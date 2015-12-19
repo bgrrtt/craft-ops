@@ -27,16 +27,6 @@
     - watch_in:
       - service: nginx
 
-# Setup the web sudo user environment
-
-{% set user = web.user -%}
-{% set group = web.group -%}
-{% set home = "/home/"+user -%}
-
-{{ env(user, group) }}
-
-# Set up each "stage" user and environment
-
 {% for stage_name, stage in web.stages.items() %}
 
 {% set user = stage.user -%}
@@ -47,7 +37,7 @@
 {% set envs = stage.envs %}
 
 {% set additional_envs = {
-  'CRAFT_PATH': home + "/shared/vendor/Craft-Release-" + craft.ref,
+  'CRAFT_PATH': home + "/shared/vendor/craft",
   'DB_HOST': database.host,
 } %}
 
@@ -89,31 +79,13 @@
 }}
 
 {{ mysql_user_db(envs.DB_USERNAME, envs.DB_PASSWORD, envs.DB_DATABASE,
-                 host=web.private_ip_address,
+                 host=stage.mysql_user_host,
                  connection={
                    'user': database.username,
                    'pass': database.password,
                    'host': database.host
                  })
 }}
-
-{% if web.server_name %}
-  {% set web_server_name = web.server_name if (stage_name == "production") else stage_name+'.'+web.server_name -%}
-{% else %}
-  {% set web_server_name = '_' if (stage_name == "production") else '' -%}
-{% endif %}
-
-{% if stage.server_name %}
-  {% set server_name = stage.server_name + " " + web_server_name %}
-{% else %}
-  {% set server_name = web_server_name %}
-{% endif %}
-
-{% if stage_name == 'production' %}
-  {% set default_server = True %}
-{% else %}
-  {% set default_server = False %}
-{% endif %}
 
 {% if stage.ssl %}
 {% set listen = '443' %}
@@ -131,11 +103,20 @@
   {% set listen = '80' %}
 {% endif %}
 
+{% if stage_name == "production" %}
+  {% set server_name = web.public_ip + " " + web.server_name -%}
+{% else %}
+  {% set server_name = stage_name+'.'+web.server_name -%}
+{% endif %}
+
+{% if stage.server_name %}
+  {% set server_name = server_name + " " + stage.server_name %}
+{% endif %}
+
 {{ nginxsite(user, group,
              project_path=project_path,
              name=project.name,
              server_name=server_name,
-             default_server=default_server,
              template="salt://web/files/craft-cms.conf",
              root="public",
              static=project_path+"/public/static",
@@ -197,23 +178,13 @@
       - cmd: move_composer
 {% endif %}
 
-{{ user }}_download_craft:
+{{ craft_path }}:
   archive.extracted:
-    - name: {{ home }}/shared/vendor
     - source: https://github.com/pixelandtonic/Craft-Release/archive/{{ craft.ref }}.tar.gz
     - source_hash: md5={{ craft.md5 }}
     - archive_format: tar
+    - tar_options: --strip-components=1
     - archive_user: {{ user }}
-    - if_missing: {{ craft_path }}
-
-{{ craft_path }}:
-  file.directory:
-    - user: {{ user }}
-    - group: {{ group }}
-    - makedirs: True
-    - recurse:
-      - user
-      - group
 
 {{ plugins_path }}:
   file.directory:
@@ -222,24 +193,23 @@
     - makedirs: True
 
 {% for plugin_name, plugin in craft.plugins.items() %}
-{{ user }}_download_craft_{{ plugin_name }}_plugin:
+{{ vendor_path }}/{{ plugin['repo_name'] }}:
   archive.extracted:
-    - name: {{ vendor_path }}
     - source: https://github.com/{{ plugin['author'] }}/{{ plugin['repo_name'] }}/archive/{{ plugin['ref'] }}.tar.gz 
     - source_hash: md5={{ plugin['md5'] }}
     - archive_format: tar
+    - tar_options: --strip-components=1
     - user: {{ user }}
     - group: {{ group }}
-    - if_missing: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
 
 {{ home }}/shared/plugins/{{ plugin_name }}:
   file.symlink:
     - user: {{ user }}
     - group: {{ group }}
     {% if 'base_dir' in plugin %}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}/{{ plugin['base_dir'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}/{{ plugin['base_dir'] }}
     {% else %}
-    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}-{{ plugin['ref'] }}
+    - target: {{ vendor_path }}/{{ plugin['repo_name'] }}
     {% endif %}
 {% endfor %}
 
