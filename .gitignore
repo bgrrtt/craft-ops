@@ -70,3 +70,4 @@ vendor
 bower_components
 public/assets/*
 public/plugins.php
+ops/salt/roots/formula

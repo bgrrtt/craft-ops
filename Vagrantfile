@@ -41,7 +41,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.synced_folder ".", "/project"
 
-  config.vm.synced_folder "ops/salt", "/salt", type: "rsync"
+  config.vm.synced_folder "ops/salt", "/salt"
 
   if $state['dev']['enable_ops_conf'] and File.exist?(ENV['HOME']+'/ops.conf')
     config.vm.provision :file,
