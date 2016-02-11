@@ -34,7 +34,7 @@
 {% set uploads_path = envs.UPLOADS_PATH %}
 
 {{ env(user, group) }}
-  
+
 {{ php5_fpm_instance(user, group, '5000',
                      envs=envs)
 }}
@@ -193,19 +193,21 @@ install_legit_aliases:
         region: {{ services.region }}
 {% endif %}
 
-dev_node_globals:
-  npm.installed:
-    - pkgs:
-      - wetty
-      - browser-sync
+node_global_wetty:
+  cmd:
+    - run
+    - name: npm install -g wetty
+    - unless: npm -g ls wetty | grep wetty
     - require:
-      - file: /usr/local/bin/node
-      - file: /usr/local/bin/npm
+      - pkg: nodejs
 
-{{ home }}/bs-config.js:
-  file.managed:
-    - source: salt://dev/files/bs-config.js
-    - user: {{ user }}
+node_global_weinre:
+   cmd:
+    - run
+    - name: npm install -g weinre@2.0.0-pre-I0Z7U9OV
+    - unless: npm -g ls weinre | grep weinre
+    - require:
+      - pkg: nodejs
 
 /etc/rc.local:
   file.managed:
@@ -272,11 +274,6 @@ install_bower_components:
         },
         "wetty": {
           "command": "wetty -p 3000 --sshuser=vagrant",
-            "directory": project_path,
-            "user": user
-        },
-        "browser-sync": {
-          "command": "/usr/local/bin/browser-sync start --config /home/vagrant/bs-config.js",
             "directory": project_path,
             "user": user
         }

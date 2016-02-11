@@ -7,19 +7,41 @@ include:
   - formula.env
   - formula.supervisor
   - formula.nginx
-  - formula.node
   - formula.php5.fpm
   - formula.mysql.server
   - formula.mysql.client
 
-node_globals:
-  npm.installed:
-    - pkgs:
-      - harp
-      - bower
+nodejs.ppa:
+  pkgrepo.managed:
+    - humanname: NodeSource Node.js Repository
+    - name: deb https://deb.nodesource.com/node_0.12 {{ grains['oscodename'] }} main
+    - dist: {{ grains['oscodename'] }}
+    - file: /etc/apt/sources.list.d/nodesource.list
+    - keyid: "68576280"
+    - key_url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+    - keyserver: keyserver.ubuntu.com
+    - require_in:
+      pkg: nodejs
+
+nodejs:
+  pkg.installed:
+    - name: nodejs
+
+node_global_bower:
+  cmd:
+    - run
+    - name: npm install -g bower
+    - unless: npm -g ls bower | grep bower
     - require:
-      - file: /usr/local/bin/node
-      - file: /usr/local/bin/npm
+      - pkg: nodejs
+
+node_global_harp:
+  cmd:
+    - run
+    - name: npm install -g harp
+    - unless: npm -g ls harp | grep harp
+    - require:
+      - pkg: nodejs
 
 remove-nginx-default-conf:
   file:

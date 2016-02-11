@@ -36,8 +36,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.ssh.forward_agent = true
 
   config.vm.network "forwarded_port", guest: 8000, host: 8000
-  config.vm.network "forwarded_port", guest: 3001, host: 3001 
-  config.vm.network "forwarded_port", guest: 3002, host: 3002 
 
   config.vm.synced_folder ".", "/project"
 
@@ -52,13 +50,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   if $state['dev']['host_private_key']
     config.vm.provision :file,
       source: $state['dev']['host_private_key'],
-      destination: '/home/vagrant/.ssh/id_rsa' 
+      destination: '/home/vagrant/.ssh/id_rsa'
     config.vm.provision :shell,
       inline: 'chmod 600 /home/vagrant/.ssh/id_rsa',
       :keep_color => true
     config.vm.provision :file,
       source: $state['dev']['host_public_key'],
-      destination: '/home/vagrant/.ssh/id_rsa.pub' 
+      destination: '/home/vagrant/.ssh/id_rsa.pub'
   end
 
   config.vm.provision :shell,
@@ -78,21 +76,7 @@ $run_salt_states = <<SCRIPT
 
   if [[ `which salt-call` == "/usr/bin/salt-call" ]]
     then
-      curl -L https://github.com/everysquare/formula/archive/#{$state['formula']['ref']}.tar.gz -s -o /tmp/formula.tar.gz >/dev/null
-
-      if [ `md5sum /tmp/formula.tar.gz | awk '{ print $1 }'` != "#{$state['formula']['md5']}" ]
-        then exit 1
-      fi
-
-      tar -xvf /tmp/formula.tar.gz -C /salt/roots --strip-components=1 >/dev/null
-
-      rm /tmp/formula.tar.gz
-
-      chown -R vagrant /salt
-
-      chgrp -R vagrant /salt
-
-      echo "[${BLUE}Running Salt states (May take up to 40 minutes the first time)...${NC}]" 
+      echo "[${BLUE}Running Salt states (May take up to 40 minutes the first time)...${NC}]"
 
       sudo salt-call state.highstate --force-color --retcode-passthrough --config-dir='/salt/config' --log-level=quiet pillar='#{$state.to_json}'
 
@@ -120,6 +104,20 @@ $install_salt = <<SCRIPT
       tar -xvf v2015.08.06.tar.gz >/dev/null
 
       sudo sh salt-bootstrap-2015.08.06/bootstrap-salt.sh -P -p python-dev -p python-pip -p python-git -p unzip >/dev/null
+
+      curl -L https://github.com/everysquare/formula/archive/#{$state['formula']['ref']}.tar.gz -s -o /tmp/formula.tar.gz >/dev/null
+
+      if [ `md5sum /tmp/formula.tar.gz | awk '{ print $1 }'` != "#{$state['formula']['md5']}" ]
+        then exit 1
+      fi
+
+      tar -xvf /tmp/formula.tar.gz -C /salt/roots --strip-components=1 >/dev/null
+
+      rm /tmp/formula.tar.gz
+
+      chown -R vagrant /salt
+
+      chgrp -R vagrant /salt
 
   else
     echo "[${ORANGE}Salt is installed.${NC}]"
